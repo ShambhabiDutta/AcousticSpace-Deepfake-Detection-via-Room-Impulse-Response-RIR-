@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import WaveSurfer from 'wavesurfer.js'
 import {
   AudioLines,
   BrainCircuit,
@@ -12,27 +13,97 @@ import {
 } from 'lucide-react'
 import './App.css'
 
+const MAX_FILE_SIZE = 25 * 1024 * 1024
+const SUPPORTED_EXTENSIONS = /\.(wav|mp3|flac|ogg|m4a|webm)$/i
+
 function App() {
   const [audioFile, setAudioFile] = useState<File | null>(null)
   const [error, setError] = useState('')
+  const [waveformError, setWaveformError] = useState('')
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const waveformRef = useRef<HTMLDivElement>(null)
+  const waveSurferRef = useRef<WaveSurfer | null>(null)
+
+  useEffect(() => {
+    if (!audioFile || !waveformRef.current) return
+
+    const objectUrl = URL.createObjectURL(audioFile)
+
+    const wavesurfer = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: '#7772b8',
+      progressColor: '#a78bfa',
+      cursorColor: '#e9d5ff',
+      height: 90,
+      barWidth: 3,
+      barGap: 2,
+      barRadius: 3,
+      normalize: true,
+    })
+
+    waveSurferRef.current = wavesurfer
+    setWaveformError('')
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+
+    wavesurfer.on('ready', (loadedDuration) => {
+      setDuration(loadedDuration)
+    })
+
+    wavesurfer.on('timeupdate', (time) => {
+      setCurrentTime(time)
+    })
+
+    wavesurfer.on('play', () => setIsPlaying(true))
+    wavesurfer.on('pause', () => setIsPlaying(false))
+    wavesurfer.on('finish', () => setIsPlaying(false))
+
+    wavesurfer.on('error', () => {
+      setWaveformError(
+        'This audio could not be decoded by your browser. Try another audio file.',
+      )
+      setIsPlaying(false)
+    })
+
+    wavesurfer.load(objectUrl)
+
+    return () => {
+      wavesurfer.destroy()
+      URL.revokeObjectURL(objectUrl)
+
+      if (waveSurferRef.current === wavesurfer) {
+        waveSurferRef.current = null
+      }
+    }
+  }, [audioFile])
 
   const handleFile = (file?: File) => {
     if (!file) return
 
-    const supportedExtensions = /\.(wav|mp3|flac|ogg|m4a|webm)$/i
-
-    if (!supportedExtensions.test(file.name)) {
-      setError('Please select a supported audio file: WAV, MP3, FLAC, OGG, M4A, or WebM.')
+    if (!SUPPORTED_EXTENSIONS.test(file.name)) {
+      setError(
+        'Please select a supported audio file: WAV, MP3, FLAC, OGG, M4A, or WebM.',
+      )
       return
     }
 
-    if (file.size > 25 * 1024 * 1024) {
+    if (file.size === 0) {
+      setError('The selected file is empty. Please choose another audio file.')
+      return
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
       setError('The maximum file size is 25 MB.')
       return
     }
 
     setError('')
+    setWaveformError('')
     setAudioFile(file)
   }
 
@@ -42,16 +113,51 @@ function App() {
       : `${(bytes / (1024 * 1024)).toFixed(2)} MB`
   }
 
+  const formatTime = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
+
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = Math.floor(seconds % 60)
+
+    return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+  }
+
+  const togglePlayback = () => {
+    if (waveSurferRef.current) {
+      void waveSurferRef.current.playPause()
+    }
+  }
+
+  const removeAudio = () => {
+    waveSurferRef.current?.pause()
+    setAudioFile(null)
+    setError('')
+    setWaveformError('')
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className="app-shell">
       <header className="navbar">
-        <a className="brand" href="#" aria-label="AcousticSpace home">
-          <span className="brand-icon"><AudioLines size={23} /></span>
-          <span>Acoustic<span className="brand-highlight">Space</span></span>
+        <a className="brand" href="#home" aria-label="AcousticSpace home">
+          <span className="brand-icon">
+            <AudioLines size={23} />
+          </span>
+          <span>
+            Acoustic<span className="brand-highlight">Space</span>
+          </span>
         </a>
 
         <nav className="nav-links" aria-label="Main navigation">
-          <a className="active" href="#home">Home</a>
+          <a className="active" href="#home">
+            Home
+          </a>
           <a href="#analyzer">Audio Analyzer</a>
           <a href="#about">About RIR</a>
         </nav>
@@ -75,8 +181,8 @@ function App() {
             </h1>
 
             <p className="hero-description">
-              Explore a new approach to deepfake audio detection using
-              Room Impulse Response (RIR) analysis and acoustic environments.
+              Explore a new approach to deepfake audio detection using Room
+              Impulse Response (RIR) analysis and acoustic environments.
             </p>
 
             <a href="#analyzer" className="primary-button">
@@ -84,15 +190,24 @@ function App() {
             </a>
 
             <div className="hero-points">
-              <span><CheckCircle2 size={16} /> Acoustic analysis</span>
-              <span><CheckCircle2 size={16} /> Audio visualization</span>
+              <span>
+                <CheckCircle2 size={16} /> Acoustic analysis
+              </span>
+              <span>
+                <CheckCircle2 size={16} /> Audio visualization
+              </span>
             </div>
           </div>
 
-          <div className="sound-card" aria-label="Decorative audio waveform illustration">
+          <div
+            className="sound-card"
+            aria-label="Decorative audio waveform illustration"
+          >
             <div className="sound-card-top">
               <span className="mini-label">ACOUSTIC SIGNATURE</span>
-              <span className="live-indicator"><span /> SIGNAL</span>
+              <span className="live-indicator">
+                <span /> SIGNAL
+              </span>
             </div>
 
             <div className="sound-orbit orbit-one" />
@@ -122,7 +237,9 @@ function App() {
 
         <section className="feature-strip" id="about">
           <article className="feature-item">
-            <span className="feature-icon purple"><AudioLines size={21} /></span>
+            <span className="feature-icon purple">
+              <AudioLines size={21} />
+            </span>
             <div>
               <h3>Acoustic fingerprints</h3>
               <p>Explore sound characteristics and room responses.</p>
@@ -130,7 +247,9 @@ function App() {
           </article>
 
           <article className="feature-item">
-            <span className="feature-icon blue"><BrainCircuit size={21} /></span>
+            <span className="feature-icon blue">
+              <BrainCircuit size={21} />
+            </span>
             <div>
               <h3>RIR-based research</h3>
               <p>Investigate room acoustics as a detection signal.</p>
@@ -138,7 +257,9 @@ function App() {
           </article>
 
           <article className="feature-item">
-            <span className="feature-icon green"><ShieldCheck size={21} /></span>
+            <span className="feature-icon green">
+              <ShieldCheck size={21} />
+            </span>
             <div>
               <h3>Evidence-led results</h3>
               <p>Prepare for model-backed authenticity analysis.</p>
@@ -153,7 +274,9 @@ function App() {
               <h2>Audio analyzer</h2>
               <p>Start by selecting an audio recording for inspection.</p>
             </div>
-            <span className="file-limit"><FileAudio size={15} /> Max. 25 MB</span>
+            <span className="file-limit">
+              <FileAudio size={15} /> Max. 25 MB
+            </span>
           </div>
 
           <div className="analyzer-grid">
@@ -178,16 +301,26 @@ function App() {
               >
                 {audioFile ? (
                   <>
-                    <span className="upload-icon success"><CheckCircle2 size={28} /></span>
+                    <span className="upload-icon success">
+                      <CheckCircle2 size={28} />
+                    </span>
                     <strong>Audio file selected</strong>
-                    <span className="drop-hint">Click to choose a different file</span>
+                    <span className="drop-hint">
+                      Click to choose a different file
+                    </span>
                   </>
                 ) : (
                   <>
-                    <span className="upload-icon"><FileUp size={28} /></span>
+                    <span className="upload-icon">
+                      <FileUp size={28} />
+                    </span>
                     <strong>Drop your audio here</strong>
-                    <span className="drop-hint">or click to browse your files</span>
-                    <span className="format-tags">WAV <i /> MP3 <i /> FLAC <i /> OGG</span>
+                    <span className="drop-hint">
+                      or click to browse your files
+                    </span>
+                    <span className="format-tags">
+                      WAV <i /> MP3 <i /> FLAC <i /> OGG
+                    </span>
                   </>
                 )}
               </button>
@@ -200,11 +333,17 @@ function App() {
                 onChange={(event) => handleFile(event.target.files?.[0])}
               />
 
-              {error && <p className="error-message" role="alert">{error}</p>}
+              {error && (
+                <p className="error-message" role="alert">
+                  {error}
+                </p>
+              )}
 
               {audioFile && (
                 <div className="selected-file">
-                  <span className="file-icon"><FileAudio size={21} /></span>
+                  <span className="file-icon">
+                    <FileAudio size={21} />
+                  </span>
                   <div className="file-details">
                     <strong>{audioFile.name}</strong>
                     <span>{formatSize(audioFile.size)}</span>
@@ -213,19 +352,52 @@ function App() {
                     type="button"
                     className="remove-file"
                     aria-label="Remove selected audio"
-                    onClick={() => {
-                      setAudioFile(null)
-                      setError('')
-                      if (fileInputRef.current) fileInputRef.current.value = ''
-                    }}
+                    onClick={removeAudio}
                   >
                     <X size={18} />
                   </button>
                 </div>
               )}
 
+              {audioFile && (
+                <div className="waveform-panel">
+                  <div className="waveform-heading">
+                    <div>
+                      <h4>Audio waveform</h4>
+                      <p>Listen to your selected recording</p>
+                    </div>
+
+                    <span className="waveform-duration">
+                      {formatTime(currentTime)} / {formatTime(duration)}
+                    </span>
+                  </div>
+
+                  <div
+                    ref={waveformRef}
+                    className="waveform-canvas"
+                    aria-label="Audio waveform visualization"
+                  />
+
+                  {waveformError ? (
+                    <p className="error-message" role="alert">
+                      {waveformError}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      className="waveform-play-button"
+                      onClick={togglePlayback}
+                      disabled={duration === 0}
+                    >
+                      {isPlaying ? 'Pause audio' : 'Play audio'}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <p className="privacy-note">
-                <ShieldCheck size={15} /> Your file stays in this browser for now.
+                <ShieldCheck size={15} /> Your file stays in this browser for
+                now.
               </p>
             </div>
 
@@ -241,16 +413,25 @@ function App() {
               <div className="empty-results">
                 <div className="empty-illustration">
                   <Headphones size={31} strokeWidth={1.4} />
-                  <span><AudioLines size={19} /></span>
+                  <span>
+                    <AudioLines size={19} />
+                  </span>
                 </div>
-                <h3>{audioFile ? 'Ready for analysis' : 'Waiting for audio'}</h3>
+
+                <h3>
+                  {audioFile ? 'Ready for analysis' : 'Waiting for audio'}
+                </h3>
+
                 <p>
                   {audioFile
                     ? 'Your file is selected. Connect the detection model to analyze its acoustic features.'
                     : 'Upload an audio file to prepare your analysis workspace.'}
                 </p>
+
                 <div className="result-placeholder">
-                  <span /><span /><span />
+                  <span />
+                  <span />
+                  <span />
                   <small>MODEL OUTPUT NOT AVAILABLE</small>
                 </div>
               </div>
@@ -258,12 +439,15 @@ function App() {
           </div>
 
           <div className="research-note">
-            <span className="note-icon"><ShieldCheck size={20} /></span>
+            <span className="note-icon">
+              <ShieldCheck size={20} />
+            </span>
             <p>
               <strong>Research transparency</strong>
               <span>
-                File selection does not perform deepfake detection. Authenticity
-                predictions will require a connected and functioning backend model.
+                File selection and waveform visualization do not perform
+                deepfake detection. Authenticity predictions require a
+                connected and functioning backend model.
               </span>
             </p>
           </div>
@@ -272,8 +456,12 @@ function App() {
 
       <footer className="footer">
         <a className="brand footer-brand" href="#home">
-          <span className="brand-icon"><AudioLines size={19} /></span>
-          <span>Acoustic<span className="brand-highlight">Space</span></span>
+          <span className="brand-icon">
+            <AudioLines size={19} />
+          </span>
+          <span>
+            Acoustic<span className="brand-highlight">Space</span>
+          </span>
         </a>
         <span>Exploring audio authenticity through room acoustics.</span>
         <span>Research prototype · v0.1</span>
