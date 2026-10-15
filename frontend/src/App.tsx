@@ -14,7 +14,10 @@ import {
 import './App.css'
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024
+
 const SUPPORTED_EXTENSIONS = /\.(wav|mp3|flac|ogg|m4a|webm)$/i
+
+type AnalysisStatus = 'idle' | 'ready' | 'unavailable'
 
 function App() {
   const [audioFile, setAudioFile] = useState<File | null>(null)
@@ -23,11 +26,14 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
+  const [analysisStatus, setAnalysisStatus] =
+    useState<AnalysisStatus>('idle')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const waveformRef = useRef<HTMLDivElement>(null)
   const waveSurferRef = useRef<WaveSurfer | null>(null)
 
+  // Load the selected audio into WaveSurfer.
   useEffect(() => {
     if (!audioFile || !waveformRef.current) return
 
@@ -46,6 +52,7 @@ function App() {
     })
 
     waveSurferRef.current = wavesurfer
+
     setWaveformError('')
     setIsPlaying(false)
     setCurrentTime(0)
@@ -59,9 +66,17 @@ function App() {
       setCurrentTime(time)
     })
 
-    wavesurfer.on('play', () => setIsPlaying(true))
-    wavesurfer.on('pause', () => setIsPlaying(false))
-    wavesurfer.on('finish', () => setIsPlaying(false))
+    wavesurfer.on('play', () => {
+      setIsPlaying(true)
+    })
+
+    wavesurfer.on('pause', () => {
+      setIsPlaying(false)
+    })
+
+    wavesurfer.on('finish', () => {
+      setIsPlaying(false)
+    })
 
     wavesurfer.on('error', () => {
       setWaveformError(
@@ -82,43 +97,40 @@ function App() {
     }
   }, [audioFile])
 
+  // Validate a selected or dropped audio file.
   const handleFile = (file?: File) => {
-  // Reset the file input so the same file can be selected again.
-  if (fileInputRef.current) {
-    fileInputRef.current.value = ''
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
+    if (!file) return
+
+    if (!SUPPORTED_EXTENSIONS.test(file.name)) {
+      setError(
+        'Unsupported file format. Please choose WAV, MP3, FLAC, OGG, M4A, or WebM.',
+      )
+      return
+    }
+
+    if (file.size === 0) {
+      setError(
+        'The selected file is empty. Please choose a valid audio recording.',
+      )
+      return
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setError(
+        'This file exceeds the 25 MB limit. Please choose a smaller audio file.',
+      )
+      return
+    }
+
+    setError('')
+    setWaveformError('')
+    setAnalysisStatus('ready')
+    setAudioFile(file)
   }
-
-  if (!file) return
-
-  // Validate the file extension.
-  if (!SUPPORTED_EXTENSIONS.test(file.name)) {
-    setError(
-      'Unsupported file format. Please choose WAV, MP3, FLAC, OGG, M4A, or WebM.',
-    )
-    return
-  }
-
-  // Reject empty files.
-  if (file.size === 0) {
-    setError(
-      'The selected file is empty. Please choose a valid audio recording.',
-    )
-    return
-  }
-
-  // Enforce the 25 MB upload limit.
-  if (file.size > MAX_FILE_SIZE) {
-    setError(
-      'This file exceeds the 25 MB limit. Please choose a smaller audio file.',
-    )
-    return
-  }
-
-  // Accept the validated file.
-  setError('')
-  setWaveformError('')
-  setAudioFile(file)
-}
 
   const formatSize = (bytes: number) => {
     return bytes < 1024 * 1024
@@ -127,7 +139,9 @@ function App() {
   }
 
   const formatTime = (seconds: number) => {
-    if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
+    if (!Number.isFinite(seconds) || seconds < 0) {
+      return '0:00'
+    }
 
     const minutes = Math.floor(seconds / 60)
     const remainingSeconds = Math.floor(seconds % 60)
@@ -141,18 +155,30 @@ function App() {
     }
   }
 
+  // Remove the current audio and reset the workspace.
   const removeAudio = () => {
     waveSurferRef.current?.pause()
+
     setAudioFile(null)
     setError('')
     setWaveformError('')
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
+    setAnalysisStatus('idle')
 
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  // This UI does not run a real deepfake detection model.
+  const checkAnalysisAvailability = () => {
+    if (!audioFile || duration <= 0 || waveformError) {
+      return
+    }
+
+    setAnalysisStatus('unavailable')
   }
 
   return (
@@ -287,6 +313,7 @@ function App() {
               <h2>Audio analyzer</h2>
               <p>Start by selecting an audio recording for inspection.</p>
             </div>
+
             <span className="file-limit">
               <FileAudio size={15} /> Max. 25 MB
             </span>
@@ -357,10 +384,12 @@ function App() {
                   <span className="file-icon">
                     <FileAudio size={21} />
                   </span>
+
                   <div className="file-details">
                     <strong>{audioFile.name}</strong>
                     <span>{formatSize(audioFile.size)}</span>
                   </div>
+
                   <button
                     type="button"
                     className="remove-file"
@@ -432,20 +461,45 @@ function App() {
                 </div>
 
                 <h3>
-                  {audioFile ? 'Ready for analysis' : 'Waiting for audio'}
+                  {analysisStatus === 'unavailable'
+                    ? 'Model not connected'
+                    : audioFile
+                      ? 'Ready for analysis'
+                      : 'Waiting for audio'}
                 </h3>
 
                 <p>
-                  {audioFile
-                    ? 'Your file is selected. Connect the detection model to analyze its acoustic features.'
-                    : 'Upload an audio file to prepare your analysis workspace.'}
+                  {analysisStatus === 'unavailable'
+                    ? 'Your audio is selected, but a detection backend is not connected. No prediction was generated.'
+                    : audioFile
+                      ? 'Your audio is ready. Check analysis availability to see whether the detection workflow is connected.'
+                      : 'Upload an audio file to prepare your analysis workspace.'}
                 </p>
+
+                <button
+                  type="button"
+                  className="waveform-play-button"
+                  disabled={
+                    !audioFile || duration <= 0 || Boolean(waveformError)
+                  }
+                  onClick={checkAnalysisAvailability}
+                >
+                  {analysisStatus === 'unavailable'
+                    ? 'Check again'
+                    : 'Check analysis availability'}
+                </button>
 
                 <div className="result-placeholder">
                   <span />
                   <span />
                   <span />
-                  <small>MODEL OUTPUT NOT AVAILABLE</small>
+                  <small>
+                    {analysisStatus === 'unavailable'
+                      ? 'DETECTION MODEL UNAVAILABLE'
+                      : analysisStatus === 'ready'
+                        ? 'AWAITING MODEL INTEGRATION'
+                        : 'MODEL OUTPUT NOT AVAILABLE'}
+                  </small>
                 </div>
               </div>
             </div>
@@ -476,6 +530,7 @@ function App() {
             Acoustic<span className="brand-highlight">Space</span>
           </span>
         </a>
+
         <span>Exploring audio authenticity through room acoustics.</span>
         <span>Research prototype · v0.1</span>
       </footer>
