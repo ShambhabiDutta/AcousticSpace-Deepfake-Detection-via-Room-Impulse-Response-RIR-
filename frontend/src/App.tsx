@@ -83,29 +83,42 @@ function App() {
   }, [audioFile])
 
   const handleFile = (file?: File) => {
-    if (!file) return
-
-    if (!SUPPORTED_EXTENSIONS.test(file.name)) {
-      setError(
-        'Please select a supported audio file: WAV, MP3, FLAC, OGG, M4A, or WebM.',
-      )
-      return
-    }
-
-    if (file.size === 0) {
-      setError('The selected file is empty. Please choose another audio file.')
-      return
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setError('The maximum file size is 25 MB.')
-      return
-    }
-
-    setError('')
-    setWaveformError('')
-    setAudioFile(file)
+  // Reset the file input so the same file can be selected again.
+  if (fileInputRef.current) {
+    fileInputRef.current.value = ''
   }
+
+  if (!file) return
+
+  // Validate the file extension.
+  if (!SUPPORTED_EXTENSIONS.test(file.name)) {
+    setError(
+      'Unsupported file format. Please choose WAV, MP3, FLAC, OGG, M4A, or WebM.',
+    )
+    return
+  }
+
+  // Reject empty files.
+  if (file.size === 0) {
+    setError(
+      'The selected file is empty. Please choose a valid audio recording.',
+    )
+    return
+  }
+
+  // Enforce the 25 MB upload limit.
+  if (file.size > MAX_FILE_SIZE) {
+    setError(
+      'This file exceeds the 25 MB limit. Please choose a smaller audio file.',
+    )
+    return
+  }
+
+  // Accept the validated file.
+  setError('')
+  setWaveformError('')
+  setAudioFile(file)
+}
 
   const formatSize = (bytes: number) => {
     return bytes < 1024 * 1024
