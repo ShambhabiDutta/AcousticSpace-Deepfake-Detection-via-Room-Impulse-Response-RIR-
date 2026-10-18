@@ -913,3 +913,118 @@
     flex-direction: column;
   }
 }
+
+
+/* Responsive refinements - Week 1, Commit 5 */
+
+/* Improve layout flexibility on tablets and small laptops */
+@media (min-width: 761px) and (max-width: 1050px) {
+  .hero-copy h1 {
+    font-size: clamp(40px, 4.8vw, 53px);
+    letter-spacing: -2px;
+  }
+
+  .sound-card {
+    min-height: 310px;
+  }
+
+  .analyzer-grid {
+    gap: 16px;
+  }
+
+  .upload-panel,
+  .results-panel {
+    padding: 20px;
+  }
+}
+
+/* Prevent content from overflowing on mobile */
+@media (max-width: 760px) {
+  .app-shell {
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+
+  .navbar {
+    align-items: center;
+  }
+
+  .nav-links a {
+    font-size: 12px;
+  }
+
+  .section-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .file-limit {
+    white-space: normal;
+    line-height: 1.5;
+  }
+
+  .format-tags {
+    flex-wrap: wrap;
+    row-gap: 7px;
+  }
+
+  .waveform-canvas {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .waveform-play-button {
+    min-height: 40px;
+  }
+
+  .primary-button,
+  .waveform-play-button,
+  .remove-file {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Extra-small phones */
+@media (max-width: 390px) {
+  .app-shell {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .brand {
+    gap: 7px;
+    font-size: 16px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .nav-links {
+    gap: 8px;
+  }
+
+  .nav-links a {
+    font-size: 11px;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(36px, 11vw, 42px);
+    letter-spacing: -1.5px;
+  }
+
+  .upload-panel,
+  .results-panel {
+    padding: 15px;
+  }
+
+  .drop-zone {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .waveform-panel {
+    padding: 10px;
+  }
+}
