@@ -61,3 +61,18 @@ def test_file_too_large():
     )
     assert response.status_code == 413
     assert "too large" in response.json()["detail"].lower()
+
+def test_predict_returns_503_until_model_is_ready():
+    response = client.post(
+        "/predict",
+        files={
+            "file": (
+                "sample.wav",
+                b"sample audio data",
+                "audio/wav",
+            )
+        },
+    )
+
+    assert response.status_code == 503
+    assert "trained model" in response.json()["detail"]

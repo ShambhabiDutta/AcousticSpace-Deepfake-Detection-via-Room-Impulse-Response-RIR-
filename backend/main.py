@@ -85,3 +85,15 @@ async def upload_audio(file: UploadFile = File(...)):
 
     finally:
         await file.close()
+        
+@app.post("/predict")
+async def predict_audio(file: UploadFile = File(...)):
+    await file.close()
+    raise HTTPException(
+        status_code=503,
+        detail=(
+            "Prediction is unavailable until the trained model "
+            "and audio preprocessing are configured."
+        ),
+    )
+

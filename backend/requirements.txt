@@ -6,3 +6,4 @@ pytest
 httpx
 numpy
 torch
+librosa
