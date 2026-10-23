@@ -525,22 +525,7 @@ function App() {
           </div>
         </section>
 
-        <section className="about-section" id="about">
-          <div className="about-icon">
-            <BrainCircuit size={25} />
-          </div>
-          <div>
-            <span className="eyebrow">THE RESEARCH</span>
-            <h2>Why Room Impulse Response?</h2>
-            <p>
-              Room Impulse Response describes how sound interacts with an
-              environment. AcousticSpace explores whether room-related acoustic
-              characteristics can help distinguish authentic speech from
-              manipulated audio. A validated detection model is required before
-              any authenticity prediction can be made.
-            </p>
-          </div>
-        </section>
+        
       </main>
 
       <footer className="footer">
