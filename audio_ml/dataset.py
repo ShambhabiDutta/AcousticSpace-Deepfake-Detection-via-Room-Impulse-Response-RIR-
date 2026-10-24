@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from audio_ml.config import REAL_LABEL, SPOOF_LABEL
-from audio_ml.feature_extractor import extract_log_mel_spectrogram
+from audio_ml.feature_extractor import extract_fixed_length_spectrogram
 
 
 LABEL_MAP = {
@@ -29,18 +29,7 @@ def get_label(label_name: str) -> int:
 
 
 def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
-    """
-    Parse an ASVspoof protocol file.
-
-    Expected line format:
-    speaker_id audio_id environment channel attack_type label
-
-    Example:
-    LA_0069 LA_T_1000137 - - A07 spoof
-    LA_0069 LA_T_1000138 - - - bonafide
-
-    Returns records containing audio_id, speaker_id, and numeric label.
-    """
+    """Parse a six-field ASVspoof-style protocol file."""
     path = Path(protocol_path)
 
     if not path.is_file():
@@ -81,6 +70,7 @@ def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
 
     return records
 
+
 def resolve_audio_path(
     audio_id: str,
     audio_dir: str | Path,
@@ -97,8 +87,11 @@ def resolve_audio_path(
     if not audio_id.strip():
         raise ValueError("Audio ID cannot be empty.")
 
-    # Prevent audio IDs from pointing outside the audio directory.
-    if Path(audio_id).name != audio_id or "/" in audio_id or "\\" in audio_id:
+    if (
+        Path(audio_id).name != audio_id
+        or "/" in audio_id
+        or "\\" in audio_id
+    ):
         raise ValueError("Audio ID must be a filename stem, not a path.")
 
     for extension in extensions:
@@ -110,6 +103,7 @@ def resolve_audio_path(
         f"No audio file found for '{audio_id}' in '{directory}'. "
         f"Checked extensions: {extensions}"
     )
+
 
 def validate_audio_file(file_path: str | Path) -> dict[str, object]:
     """Validate an audio file and return basic metadata."""
@@ -130,20 +124,72 @@ def validate_audio_file(file_path: str | Path) -> dict[str, object]:
         "valid": True,
     }
 
+
 def prepare_sample(
     file_path: str | Path,
     label_name: str,
 ) -> tuple[np.ndarray, int]:
-    """Extract features and return them with the numeric label."""
+    """Extract fixed-length features and return them with the label."""
     path = Path(file_path)
 
     if not path.is_file():
         raise FileNotFoundError(f"Audio file not found: {path}")
 
-    features = extract_log_mel_spectrogram(str(path))
+    features = extract_fixed_length_spectrogram(str(path))
     label = get_label(label_name)
 
     return features, label
+
+
+def export_feature_arrays(
+    records: list[dict[str, str | int]],
+    audio_dir: str | Path,
+    output_dir: str | Path,
+) -> dict[str, object]:
+    """
+    Extract features for protocol records and save model-ready arrays.
+
+    Saves:
+        X.npy: spectrogram features
+        y.npy: numeric labels
+        sample_ids.npy: corresponding audio IDs
+    """
+    if not records:
+        raise ValueError("Cannot export features from an empty dataset.")
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    feature_arrays = []
+    labels = []
+    sample_ids = []
+
+    for record in records:
+        audio_id = str(record["audio_id"])
+        label = int(record["label"])
+        audio_path = resolve_audio_path(audio_id, audio_dir)
+
+        features = extract_fixed_length_spectrogram(str(audio_path))
+
+        feature_arrays.append(features)
+        labels.append(label)
+        sample_ids.append(audio_id)
+
+    X = np.stack(feature_arrays).astype(np.float32)
+    y = np.asarray(labels, dtype=np.int64)
+    ids = np.asarray(sample_ids, dtype=str)
+
+    np.save(output_path / "X.npy", X)
+    np.save(output_path / "y.npy", y)
+    np.save(output_path / "sample_ids.npy", ids)
+
+    return {
+        "sample_count": len(records),
+        "feature_shape": X.shape,
+        "real_count": int(np.sum(y == REAL_LABEL)),
+        "spoof_count": int(np.sum(y == SPOOF_LABEL)),
+        "output_dir": str(output_path),
+    }
 
 
 if __name__ == "__main__":
