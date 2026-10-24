@@ -28,6 +28,60 @@ def get_label(label_name: str) -> int:
     return LABEL_MAP[normalized]
 
 
+def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
+    """
+    Parse an ASVspoof protocol file.
+
+    Expected line format:
+    speaker_id audio_id environment channel attack_type label
+
+    Example:
+    LA_0069 LA_T_1000137 - - A07 spoof
+    LA_0069 LA_T_1000138 - - - bonafide
+
+    Returns records containing audio_id, speaker_id, and numeric label.
+    """
+    path = Path(protocol_path)
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Protocol file not found: {path}")
+
+    records = []
+
+    with path.open("r", encoding="utf-8") as protocol_file:
+        for line_number, line in enumerate(protocol_file, start=1):
+            line = line.strip()
+
+            if not line:
+                continue
+
+            fields = line.split()
+
+            if len(fields) != 6:
+                raise ValueError(
+                    f"Malformed protocol line {line_number}: "
+                    f"expected 6 fields, got {len(fields)}"
+                )
+
+            speaker_id, audio_id, _, _, _, label_name = fields
+
+            try:
+                label = get_label(label_name)
+            except ValueError as error:
+                raise ValueError(
+                    f"Invalid label on protocol line {line_number}: "
+                    f"{label_name}"
+                ) from error
+
+            records.append({
+                "speaker_id": speaker_id,
+                "audio_id": audio_id,
+                "label": label,
+            })
+
+    return records
+
+
 def prepare_sample(
     file_path: str | Path,
     label_name: str,
