@@ -81,6 +81,36 @@ def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
 
     return records
 
+def resolve_audio_path(
+    audio_id: str,
+    audio_dir: str | Path,
+    extensions: tuple[str, ...] = (".flac", ".wav"),
+) -> Path:
+    """Find an audio file by ID inside the dataset audio directory."""
+    directory = Path(audio_dir)
+
+    if not directory.is_dir():
+        raise NotADirectoryError(
+            f"Audio directory does not exist: {directory}"
+        )
+
+    if not audio_id.strip():
+        raise ValueError("Audio ID cannot be empty.")
+
+    # Prevent audio IDs from pointing outside the audio directory.
+    if Path(audio_id).name != audio_id or "/" in audio_id or "\\" in audio_id:
+        raise ValueError("Audio ID must be a filename stem, not a path.")
+
+    for extension in extensions:
+        candidate = directory / f"{audio_id}{extension}"
+        if candidate.is_file():
+            return candidate
+
+    raise FileNotFoundError(
+        f"No audio file found for '{audio_id}' in '{directory}'. "
+        f"Checked extensions: {extensions}"
+    )
+
 
 def prepare_sample(
     file_path: str | Path,
