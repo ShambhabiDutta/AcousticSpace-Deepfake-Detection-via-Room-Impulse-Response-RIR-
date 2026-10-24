@@ -19,3 +19,12 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Uploaded audio files
+/uploads/
