@@ -111,6 +111,24 @@ def resolve_audio_path(
         f"Checked extensions: {extensions}"
     )
 
+def validate_audio_file(file_path: str | Path) -> dict[str, object]:
+    """Validate an audio file and return basic metadata."""
+    from audio_ml.audio_processor import load_audio
+
+    path = Path(file_path)
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Audio file not found: {path}")
+
+    audio, sample_rate = load_audio(str(path))
+
+    return {
+        "file_name": path.name,
+        "sample_rate": sample_rate,
+        "duration_seconds": round(len(audio) / sample_rate, 3),
+        "sample_count": len(audio),
+        "valid": True,
+    }
 
 def prepare_sample(
     file_path: str | Path,
