@@ -27,3 +27,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+
+
+audio_ml/data/**/.cache/
+
+audio_ml/features/feature_comparison_100_samples.png
