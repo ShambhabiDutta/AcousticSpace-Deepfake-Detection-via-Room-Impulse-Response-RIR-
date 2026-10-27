@@ -547,6 +547,83 @@
   text-align: center;
 }
 
+
+/* Week 3: prediction results panel foundation */
+.result-icon {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 18px;
+  border: 1px solid #a89aff30;
+  border-radius: 20px;
+  color: #b5a8ff;
+  background: #a89aff0d;
+}
+
+.upload-complete {
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.upload-complete > .result-icon,
+.upload-complete > h3,
+.upload-complete > p {
+  align-self: center;
+  text-align: center;
+}
+
+.upload-complete > h3 {
+  margin-bottom: 8px;
+}
+
+.upload-complete > p {
+  margin-bottom: 18px;
+}
+
+.upload-result-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.upload-result-details > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ffffff12;
+  border-radius: 9px;
+  background: #ffffff05;
+}
+
+.upload-result-details span {
+  display: block;
+  margin-bottom: 7px;
+  color: #9293a9;
+  font-size: 10px;
+}
+
+.upload-result-details strong {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #e7e5f4;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.research-note {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 420px) {
+  .upload-result-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .empty-illustration {
   position: relative;
   display: grid;
