@@ -18,7 +18,7 @@ The project includes a Python audio-processing pipeline, a baseline machine-lear
 - Joblib
 - pytest
 - HTTPX
-- React and TypeScript (frontend integration)
+
 
 ## Project Structure
 
