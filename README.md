@@ -1,122 +1,183 @@
+
 # AcousticSpace: Deepfake Detection via Room Impulse Response (RIR)
 
 ## Overview
 
-AcousticSpace explores audio deepfake detection using Room Impulse Response (RIR) and acoustic features. The project investigates whether reverberation and other acoustic characteristics can contribute to identifying synthetic or manipulated audio.
+AcousticSpace is a research project exploring audio deepfake detection using Room Impulse Response (RIR) and acoustic features. It investigates whether acoustic characteristics can help distinguish genuine speech from synthetic or manipulated audio.
+
+The project includes a Python audio-processing pipeline, a baseline machine-learning model, and a FastAPI backend. Frontend integration is the next development stage.
 
 ## Technology Stack
 
 - Python
-- FastAPI and Uvicorn
-- Librosa, NumPy, Pandas, Matplotlib, SciPy, and PyTorch
-- pytest and HTTPX
+- FastAPI
+- Uvicorn
+- NumPy
+- Librosa
+- Scikit-learn
+- Joblib
+- pytest
+- HTTPX
+- React and TypeScript (frontend integration)
+
+## Project Structure
+
+```text
+AcousticSpace/
+├── audio_ml/
+│   ├── dataset.py
+│   ├── feature_extractor.py
+│   ├── evaluate_thresholds.py
+│   ├── train_baseline.py
+│   ├── models/
+│   │   └── baseline_logreg.joblib
+│   └── tests/
+├── backend/
+│   ├── main.py
+│   ├── test_main.py
+│   ├── test_cnn_model.py
+│   ├── requirements.txt
+│   └── uploads/
+├── frontend/                 # Frontend integration, if present on this branch
+├── .gitignore
+└── README.md
+```
+
+The `venv/` directory, uploaded audio, and generated datasets should remain excluded from version control where appropriate. The trained model is currently stored at `audio_ml/models/baseline_logreg.joblib`.
 
 ## Backend API
 
+Start the backend from the project root:
+
+```powershell
+python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+If your local import configuration requires starting from the `backend` directory, use the command that works in your environment.
+
+### Available Endpoints
+
 | Method | Endpoint | Purpose |
 |---|---|---|
-| GET | `/` | API status |
-| GET | `/health` | Health check |
-| POST | `/upload` | Upload and validate audio |
-| POST | `/predict` | Prediction endpoint placeholder |
+| GET | `/` | Confirms that the API is running |
+| GET | `/health` | Checks backend health |
+| POST | `/upload` | Validates and saves an audio file |
+| POST | `/predict` | Runs baseline model inference on an audio file |
 
-Supported audio extensions: WAV, MP3, FLAC, OGG. Maximum upload size: 20 MB.
+### Audio Upload
 
-The `/predict` endpoint returns HTTP 503 until a trained model is available.
+The `/upload` endpoint accepts a multipart form field named `file`.
+
+Supported extensions:
+
+- `.wav`
+- `.mp3`
+- `.flac`
+- `.ogg`
+
+The configured maximum file size is 20 MB. Empty files and unsupported formats are rejected. Files are saved with unique generated filenames to avoid overwriting existing uploads.
+
+### Deepfake Prediction
+
+The `/predict` endpoint accepts an audio file through the multipart field `file`.
+
+The backend processes the audio, extracts a fixed-length log-mel spectrogram, generates summary features, and passes them to the trained baseline classifier.
+
+A successful response includes:
+
+- `filename`
+- `prediction` (`real` or `spoof`)
+- `spoof_probability`
+- `threshold`
+- `status`
+
+The current configured decision threshold is `0.70`. The returned probability is a model score, not proof that a recording is genuine or fake.
+
+## Frontend Integration
+
+The frontend will connect to the FastAPI backend at:
+
+```text
+http://127.0.0.1:8000
+```
+
+The React upload form should send audio to `POST /predict` using `multipart/form-data` with the field name `file`.
+
+The dashboard should display the selected filename, upload or processing status, predicted label, and spoof probability.
+
+The frontend should handle API errors, invalid files, and network failures gracefully. CORS must permit the frontend's actual local development origin.
+
+**Status:** Frontend integration is pending until the frontend code is connected and tested end to end.
 
 ## Audio Processing
 
-The `audio_ml/` module includes:
+The audio pipeline includes:
 
-- Audio preprocessing and mono conversion
-- Resampling to 16 kHz
-- Log-mel spectrogram extraction
-- Dataset utilities and label validation
-- Reverberation-related feature extraction
-- Evaluation utilities and confusion matrix plotting
-- Automated tests
+1. Loading audio and converting it to mono.
+2. Resampling to 16 kHz.
+3. Extracting log-mel spectrograms.
+4. Padding or truncating spectrograms to a consistent shape.
+5. Summarizing the features for baseline model inference.
 
-Configuration for log-mel spectrogram extraction:
+The feature extractor uses 64 mel bands and a fixed-length spectrogram representation of 400 frames.
 
-- FFT size: 1,024
-- Hop length: 256
-- Mel bands: 64
+## Baseline Model
 
-## RIR Acoustic Analysis
-
-The script `audio_ml/run_rir_analysis.py` regenerates acoustic-condition summaries, paired comparisons, statistical tests, correlations, and plots from the existing feature dataset.
-
-### Input
-
-The script reads:
-
-`audio_ml/features/sample_features_with_rir_metadata.csv`
-
-The current sample contains 100 feature rows across five conditions:
-
-- Clean
-- Reverberation
-- Noise at 10 dB SNR
-- Noise at 5 dB SNR
-- Noise at 0 dB SNR
-
-The paired reverberation analysis compares 20 matched sample IDs under clean and reverberant conditions.
-
-### Features analyzed
-
-- RMS amplitude
-- Peak amplitude
-- Zero-crossing rate (ZCR)
-- Spectral centroid
-- RIR metadata, including T60, DRR, C50, EDT, and available SNR values
-
-### Analysis methods
-
-- Summary statistics by acoustic condition
-- Paired reverb-minus-clean feature differences
-- Wilcoxon signed-rank tests with Holm correction
-- Spearman correlations between T60 and paired feature changes
-- Plots comparing acoustic conditions and paired feature changes
-
-### Run the analysis
-
-From the project root:
+The baseline training script is:
 
 ```powershell
-python audio_ml\run_rir_analysis.py
+python -m audio_ml.train_baseline
 ```
 
-The script writes its output to `audio_ml/features/`.
-
-Main output files:
-
-| File | Purpose |
-|---|---|
-| `condition_feature_summary.csv` | Feature statistics by condition |
-| `sample_feature_comparison.png` | Acoustic feature comparison plots |
-| `feature_comparison_100_samples.png` | Feature comparison figure |
-| `paired_reverb_changes.csv` | Per-sample reverb-minus-clean differences |
-| `paired_reverb_statistical_tests.csv` | Paired tests and Holm-adjusted p-values |
-| `paired_reverb_changes.png` | Distribution of paired changes |
-| `t60_paired_change_correlations.csv` | T60 correlation statistics |
-| `t60_paired_change_scatter.png` | T60 versus paired feature changes |
-| `t60_vs_spectral_centroid_reverb.png` | T60 versus spectral centroid for reverb samples |
-
-### Interpretation and limitations
-
-These analyses describe how acoustic features change under the dataset's simulated reverberation and noise conditions. The current paired analysis uses 20 matched samples, so its findings are preliminary.
-
-T60, DRR, C50, and EDT are dataset-provided acoustic descriptors. They should not be presented as independently measured physical room properties.
-
-**Important:** The current analysis does not establish genuine-versus-deepfake classification performance. Acoustic-condition labels such as `clean`, `reverb`, and `noisy_snr10` are not real/spoof labels. A validated labelled dataset and trained, evaluated detection model are still required.
-
-## Setup
-
-Create and activate a virtual environment if needed, then install the backend dependencies:
+The threshold evaluation script is:
 
 ```powershell
-python -m venv backend\venv
-.\backend\venv\Scripts\Activate.ps1
-python -m pip install -r backend\requirements.txt
-
+python -m audio_ml.evaluate_thresholds
 ```
+
+The trained model is stored at:
+
+```text
+audio_ml/models/baseline_logreg.joblib
+```
+
+The baseline model is an initial research implementation. Performance on development data does not guarantee accuracy on unseen real-world recordings.
+
+## Run Tests
+
+From the project root, with the project's virtual environment activated:
+
+```powershell
+python -m pytest -v
+```
+
+The current test suite contains 23 tests covering audio processing, dataset summaries, evaluation metrics, RIR features, CNN output checks, and backend endpoints.
+
+## Current Project Status
+
+### Completed
+
+- FastAPI backend setup.
+- Health-check and root endpoints.
+- Audio-upload validation.
+- Baseline model training and storage.
+- Audio feature extraction.
+- Prediction endpoint integration.
+- Threshold evaluation script.
+- Automated tests: 23 passed.
+- Backend changes committed and pushed to the `KarolineUrmitha` branch.
+
+### In Progress
+
+- React frontend integration.
+- Frontend-to-backend upload and prediction workflow.
+- Displaying prediction results in the dashboard.
+- End-to-end testing.
+
+## Limitations
+
+The current classifier is a baseline model and has not been established as a reliable production deepfake detector. Results may vary across datasets, recording environments, codecs, and synthesis methods.
+
+RIR-based feature exploration, further model evaluation, and end-to-end frontend testing remain important future tasks.
+
+
