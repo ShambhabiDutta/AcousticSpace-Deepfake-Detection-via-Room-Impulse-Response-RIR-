@@ -1,4 +1,4 @@
-
+﻿
 from pathlib import Path
 
 import numpy as np
@@ -28,8 +28,10 @@ def get_label(label_name: str) -> int:
     return LABEL_MAP[normalized]
 
 
-def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
-    """Parse a six-field ASVspoof-style protocol file."""
+def parse_protocol(
+    protocol_path: str | Path,
+) -> list[dict[str, str | int]]:
+    """Parse five-field ASVspoof and legacy six-field protocol files."""
     path = Path(protocol_path)
 
     if not path.is_file():
@@ -46,13 +48,15 @@ def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
 
             fields = line.split()
 
-            if len(fields) != 6:
+            if len(fields) not in (5, 6):
                 raise ValueError(
                     f"Malformed protocol line {line_number}: "
-                    f"expected 6 fields, got {len(fields)}"
+                    f"expected 5 or 6 fields, got {len(fields)}"
                 )
 
-            speaker_id, audio_id, _, _, _, label_name = fields
+            speaker_id = fields[0]
+            audio_id = fields[1]
+            label_name = fields[-1]
 
             try:
                 label = get_label(label_name)
@@ -62,11 +66,13 @@ def parse_protocol(protocol_path: str | Path) -> list[dict[str, str | int]]:
                     f"{label_name}"
                 ) from error
 
-            records.append({
-                "speaker_id": speaker_id,
-                "audio_id": audio_id,
-                "label": label,
-            })
+            records.append(
+                {
+                    "speaker_id": speaker_id,
+                    "audio_id": audio_id,
+                    "label": label,
+                }
+            )
 
     return records
 
@@ -76,122 +82,151 @@ def resolve_audio_path(
     audio_dir: str | Path,
     extensions: tuple[str, ...] = (".flac", ".wav"),
 ) -> Path:
-    """Find an audio file by ID inside the dataset audio directory."""
+    """Find an audio file by ID using supported extensions."""
     directory = Path(audio_dir)
-
-    if not directory.is_dir():
-        raise NotADirectoryError(
-            f"Audio directory does not exist: {directory}"
-        )
-
-    if not audio_id.strip():
-        raise ValueError("Audio ID cannot be empty.")
-
-    if (
-        Path(audio_id).name != audio_id
-        or "/" in audio_id
-        or "\\" in audio_id
-    ):
-        raise ValueError("Audio ID must be a filename stem, not a path.")
 
     for extension in extensions:
         candidate = directory / f"{audio_id}{extension}"
+
         if candidate.is_file():
             return candidate
 
     raise FileNotFoundError(
-        f"No audio file found for '{audio_id}' in '{directory}'. "
-        f"Checked extensions: {extensions}"
+        f"Audio file '{audio_id}' not found in '{directory}' "
+        f"with extensions {extensions}"
     )
 
 
-def validate_audio_file(file_path: str | Path) -> dict[str, object]:
-    """Validate an audio file and return basic metadata."""
-    from audio_ml.audio_processor import load_audio
-
-    path = Path(file_path)
+def validate_audio_file(audio_path: str | Path) -> bool:
+    """Check that an audio file exists and is readable."""
+    path = Path(audio_path)
 
     if not path.is_file():
-        raise FileNotFoundError(f"Audio file not found: {path}")
+        return False
 
-    audio, sample_rate = load_audio(str(path))
-
-    return {
-        "file_name": path.name,
-        "sample_rate": sample_rate,
-        "duration_seconds": round(len(audio) / sample_rate, 3),
-        "sample_count": len(audio),
-        "valid": True,
-    }
+    try:
+        with path.open("rb") as audio_file:
+            return bool(audio_file.read(1))
+    except OSError:
+        return False
 
 
 def prepare_sample(
-    file_path: str | Path,
-    label_name: str,
-) -> tuple[np.ndarray, int]:
-    """Extract fixed-length features and return them with the label."""
-    path = Path(file_path)
+    audio_id: str,
+    label: int,
+    audio_dir: str | Path,
+) -> dict[str, object]:
+    """Load an audio file and extract its fixed-length spectrogram."""
+    audio_path = resolve_audio_path(audio_id, audio_dir)
 
-    if not path.is_file():
-        raise FileNotFoundError(f"Audio file not found: {path}")
+    if not validate_audio_file(audio_path):
+        raise ValueError(
+            f"Audio file is empty or unreadable: {audio_path}"
+        )
 
-    features = extract_fixed_length_spectrogram(str(path))
-    label = get_label(label_name)
+    features = extract_fixed_length_spectrogram(str(audio_path))
 
-    return features, label
+    return {
+        "audio_id": audio_id,
+        "label": label,
+        "features": np.asarray(features, dtype=np.float32),
+        "audio_path": str(audio_path),
+    }
 
 
 def export_feature_arrays(
     records: list[dict[str, str | int]],
     audio_dir: str | Path,
     output_dir: str | Path,
-) -> dict[str, object]:
+) -> tuple[Path, Path]:
     """
-    Extract features for protocol records and save model-ready arrays.
+    Extract features incrementally and save them using memory-mapped arrays.
 
-    Saves:
-        X.npy: spectrogram features
-        y.npy: numeric labels
-        sample_ids.npy: corresponding audio IDs
+    Only one recording's feature array is prepared at a time, rather than
+    accumulating every recording in Python lists before saving.
     """
     if not records:
-        raise ValueError("Cannot export features from an empty dataset.")
+        raise ValueError(
+            "Cannot export features: protocol contains no records."
+        )
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    feature_arrays = []
-    labels = []
-    sample_ids = []
+    features_file = output_path / "features.npy"
+    labels_file = output_path / "labels.npy"
 
-    for record in records:
-        audio_id = str(record["audio_id"])
-        label = int(record["label"])
-        audio_path = resolve_audio_path(audio_id, audio_dir)
+    # Process the first record to determine the feature shape.
+    first = prepare_sample(
+        audio_id=str(records[0]["audio_id"]),
+        label=int(records[0]["label"]),
+        audio_dir=audio_dir,
+    )
 
-        features = extract_fixed_length_spectrogram(str(audio_path))
+    first_features = np.asarray(first["features"], dtype=np.float32)
 
-        feature_arrays.append(features)
-        labels.append(label)
-        sample_ids.append(audio_id)
+    # Create disk-backed arrays with their final shapes.
+    features_array = np.lib.format.open_memmap(
+        features_file,
+        mode="w+",
+        dtype=np.float32,
+        shape=(len(records), *first_features.shape),
+    )
 
-    X = np.stack(feature_arrays).astype(np.float32)
-    y = np.asarray(labels, dtype=np.int64)
-    ids = np.asarray(sample_ids, dtype=str)
+    labels_array = np.lib.format.open_memmap(
+        labels_file,
+        mode="w+",
+        dtype=np.int64,
+        shape=(len(records),),
+    )
 
-    np.save(output_path / "X.npy", X)
-    np.save(output_path / "y.npy", y)
-    np.save(output_path / "sample_ids.npy", ids)
+    try:
+        features_array[0] = first_features
+        labels_array[0] = int(first["label"])
 
-    return {
-        "sample_count": len(records),
-        "feature_shape": X.shape,
-        "real_count": int(np.sum(y == REAL_LABEL)),
-        "spoof_count": int(np.sum(y == SPOOF_LABEL)),
-        "output_dir": str(output_path),
-    }
+        # Process each remaining recording individually.
+        for index, record in enumerate(records[1:], start=1):
+            sample = prepare_sample(
+                audio_id=str(record["audio_id"]),
+                label=int(record["label"]),
+                audio_dir=audio_dir,
+            )
+
+            sample_features = np.asarray(
+                sample["features"],
+                dtype=np.float32,
+            )
+
+            if sample_features.shape != first_features.shape:
+                raise ValueError(
+                    f"Inconsistent feature shape for "
+                    f"{record['audio_id']}: {sample_features.shape}; "
+                    f"expected {first_features.shape}"
+                )
+
+            features_array[index] = sample_features
+            labels_array[index] = int(sample["label"])
+
+            if (index + 1) % 1000 == 0:
+                features_array.flush()
+                labels_array.flush()
+                print(
+                    f"Processed {index + 1}/{len(records)} recordings"
+                )
+
+        features_array.flush()
+        labels_array.flush()
+
+    finally:
+        # Release memory-mapped array handles.
+        del features_array
+        del labels_array
+
+    return features_file, labels_file
 
 
 if __name__ == "__main__":
-    print("Dataset utilities loaded successfully.")
-    print(f"Label map: {LABEL_MAP}")
+    print("Supported labels:")
+
+    for name, label in LABEL_MAP.items():
+        print(f"  {name}: {label}")

@@ -66,7 +66,7 @@ def extract_fixed_length_spectrogram(
             features,
             ((0, 0), (0, padding_width)),
             mode="constant",
-            constant_values=0,
+            constant_values=-80.0,
         )
 
     return features.astype(np.float32)
