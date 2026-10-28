@@ -1105,3 +1105,59 @@
     padding: 10px;
   }
 }
+
+/* Week 3: prediction confidence display */
+.confidence-panel {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 16px;
+  padding: 15px;
+  border: 1px solid #ffffff12;
+  border-radius: 10px;
+  background: #ffffff05;
+}
+
+.confidence-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.confidence-heading > span:first-child {
+  color: #e7e5f4;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.confidence-status {
+  padding: 5px 9px;
+  border: 1px solid #f0c67435;
+  border-radius: 20px;
+  color: #e9c982;
+  background: #f0c6740c;
+  font-size: 10px;
+}
+
+.confidence-track {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #ffffff12;
+}
+
+.confidence-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.confidence-message {
+  margin: 10px 0 0;
+  color: #9999ae;
+  font-size: 11px;
+  line-height: 1.7;
+}

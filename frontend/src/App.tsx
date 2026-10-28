@@ -473,6 +473,27 @@ function App() {
                     </div>
                   </div>
 
+<div className="confidence-panel">
+  <div className="confidence-heading">
+    <span>Prediction confidence</span>
+    <span className="confidence-status">Unavailable</span>
+  </div>
+
+  <div
+    className="confidence-track"
+    role="progressbar"
+    aria-label="Prediction confidence"
+    aria-valuetext="Unavailable because model inference is not configured"
+  >
+    <div className="confidence-fill" />
+  </div>
+
+  <p className="confidence-message">
+    No confidence score is available until the trained model and
+    preprocessing pipeline are connected.
+  </p>
+</div>
+
                   <div className="research-note">
                     <BrainCircuit size={19} />
                     <div>
