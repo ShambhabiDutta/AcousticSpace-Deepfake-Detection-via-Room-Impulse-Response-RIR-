@@ -17,7 +17,10 @@ export interface AudioUploadResponse {
 export async function checkBackendHealth(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE_URL}/health`);
-    if (!response.ok) return false;
+
+    if (!response.ok) {
+      return false;
+    }
 
     const data = await response.json();
     return data.status === "healthy";
@@ -26,7 +29,9 @@ export async function checkBackendHealth(): Promise<boolean> {
   }
 }
 
-export async function uploadAudio(file: File): Promise<AudioUploadResponse> {
+export async function uploadAudio(
+  file: File,
+): Promise<AudioUploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -48,6 +53,7 @@ export async function uploadAudio(file: File): Promise<AudioUploadResponse> {
 
     try {
       const data = await response.json();
+
       if (typeof data.detail === "string") {
         message = data.detail;
       }
@@ -60,5 +66,50 @@ export async function uploadAudio(file: File): Promise<AudioUploadResponse> {
 
   return (await response.json()) as AudioUploadResponse;
 }
+
+/**
+ * Sends audio to the prediction endpoint.
+ * The current backend returns HTTP 503 until model inference is configured.
+ */
+export async function predictAudio(file: File): Promise<never> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}/predict`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new Error(
+      "Cannot connect to the prediction service. Check that the backend is running.",
+    );
+  }
+
+  let data: { detail?: string };
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(
+      `Prediction service returned an invalid response (${response.status}).`,
+    );
+  }
+
+    if (!response.ok) {
+    throw new Error(
+      typeof data.detail === "string"
+        ? data.detail
+        : `Prediction failed (${response.status}).`,
+    );
+  }
+
+  throw new Error(
+    "The prediction endpoint responded, but no prediction result was processed.",
+  );
+}
+
 
 export { API_BASE_URL };

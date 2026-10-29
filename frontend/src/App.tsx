@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import "./App.css";
-import { uploadAudio } from "./services/audioApi";
+import { predictAudio, uploadAudio } from "./services/audioApi";
 import type { AudioUploadResponse } from "./services/audioApi";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -23,15 +23,16 @@ type AnalysisStatus = "idle" | "ready" | "unavailable";
 function App() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [error, setError] = useState("");
+  const [predictionError, setPredictionError] = useState("");
   const [waveformError, setWaveformError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>("idle");
+  const [analysisStatus, setAnalysisStatus] =
+    useState<AnalysisStatus>("idle");
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<AudioUploadResponse | null>(
-    null,
-  );
+  const [uploadResult, setUploadResult] =
+    useState<AudioUploadResponse | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -104,18 +105,22 @@ function App() {
     return () => {
       cancelled = true;
       waveSurfer.destroy();
+
       if (waveSurferRef.current === waveSurfer) {
         waveSurferRef.current = null;
       }
+
       URL.revokeObjectURL(objectUrl);
     };
   }, [audioFile]);
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
+
     if (bytes < 1024 * 1024) {
       return `${(bytes / 1024).toFixed(1)} KB`;
     }
+
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
@@ -155,6 +160,7 @@ function App() {
     }
 
     setError("");
+    setPredictionError("");
     setWaveformError("");
     setUploadResult(null);
     setAnalysisStatus("ready");
@@ -179,6 +185,7 @@ function App() {
     waveSurferRef.current?.stop();
     setAudioFile(null);
     setError("");
+    setPredictionError("");
     setWaveformError("");
     setIsPlaying(false);
     setDuration(0);
@@ -195,13 +202,25 @@ function App() {
     if (!audioFile || isUploading) return;
 
     setError("");
+    setPredictionError("");
     setUploadResult(null);
     setIsUploading(true);
 
     try {
       const result = await uploadAudio(audioFile);
       setUploadResult(result);
-      setAnalysisStatus("unavailable");
+
+      try {
+        await predictAudio(audioFile);
+        setAnalysisStatus("unavailable");
+      } catch (err) {
+        setAnalysisStatus("unavailable");
+        setPredictionError(
+          err instanceof Error
+            ? err.message
+            : "Prediction is currently unavailable. Please try again later.",
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -423,7 +442,7 @@ function App() {
                 {isUploading ? (
                   <>
                     <AudioLines size={18} />
-                    Uploading audio...
+                    Uploading and checking prediction...
                   </>
                 ) : (
                   <>
@@ -473,35 +492,37 @@ function App() {
                     </div>
                   </div>
 
-<div className="confidence-panel">
-  <div className="confidence-heading">
-    <span>Prediction confidence</span>
-    <span className="confidence-status">Unavailable</span>
-  </div>
+                  <div className="confidence-panel">
+                    <div className="confidence-heading">
+                      <span>Prediction confidence</span>
+                      <span className="confidence-status">Unavailable</span>
+                    </div>
 
-  <div
-    className="confidence-track"
-    role="progressbar"
-    aria-label="Prediction confidence"
-    aria-valuetext="Unavailable because model inference is not configured"
-  >
-    <div className="confidence-fill" />
-  </div>
+                    <div
+                      className="confidence-track"
+                      aria-label="Prediction confidence unavailable"
+                      aria-valuetext="No confidence score returned"
+                    >
+                      <div className="confidence-fill" />
+                    </div>
 
-  <p className="confidence-message">
-    No confidence score is available until the trained model and
-    preprocessing pipeline are connected.
-  </p>
-</div>
+                    <p className="confidence-message">
+                      No confidence score is available because the backend
+                      model inference is not configured.
+                    </p>
+                  </div>
 
                   <div className="research-note">
                     <BrainCircuit size={19} />
                     <div>
-                      <strong>Prediction not available yet</strong>
+                      <strong>
+                        {predictionError
+                          ? "Prediction unavailable"
+                          : "Prediction status"}
+                      </strong>
                       <p>
-                        Upload is complete, but deepfake detection has not been
-                        run. The prediction endpoint requires the model and
-                        preprocessing pipeline to be ready.
+                        {predictionError ||
+                          "The backend did not return a prediction result."}
                       </p>
                     </div>
                   </div>
@@ -520,7 +541,7 @@ function App() {
                     {isUploading
                       ? "Uploading your audio"
                       : analysisStatus === "unavailable"
-                        ? "Model not connected"
+                        ? "Prediction unavailable"
                         : audioFile
                           ? "Ready to upload"
                           : "Waiting for audio"}
@@ -528,9 +549,9 @@ function App() {
 
                   <p>
                     {isUploading
-                      ? "Please wait while the backend receives your file."
+                      ? "Please wait while the backend receives your file and checks prediction availability."
                       : audioFile
-                        ? "Your audio is selected. Upload it to verify the backend connection and receive a server confirmation."
+                        ? "Your audio is selected. Upload it to check backend and prediction availability."
                         : "Choose an audio file to prepare your workspace."}
                   </p>
 
@@ -545,8 +566,6 @@ function App() {
             </section>
           </div>
         </section>
-
-        
       </main>
 
       <footer className="footer">
