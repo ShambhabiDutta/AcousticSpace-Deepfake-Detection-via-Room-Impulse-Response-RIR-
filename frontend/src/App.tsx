@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import WaveSurfer from "wavesurfer.js";
 import {
@@ -18,7 +19,12 @@ import type { AudioUploadResponse } from "./services/audioApi";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = /\.(wav|mp3|flac|ogg)$/i;
 
-type AnalysisStatus = "idle" | "ready" | "unavailable";
+type AnalysisStatus = "idle" | "ready" | "success" | "unavailable";
+
+interface PredictionResponse {
+  prediction?: string;
+  confidence?: number;
+}
 
 function App() {
   const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -33,6 +39,8 @@ function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadResult, setUploadResult] =
     useState<AudioUploadResponse | null>(null);
+  const [predictionResult, setPredictionResult] =
+    useState<PredictionResponse | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -51,14 +59,15 @@ function App() {
 
     const waveSurfer = WaveSurfer.create({
       container: waveformRef.current,
-      waveColor: "#a5b4fc",
-      progressColor: "#6366f1",
-      cursorColor: "#4338ca",
-      height: 80,
+      waveColor: "#8b7cf6",
+      progressColor: "#c4b5fd",
+      cursorColor: "#ffffff",
+      height: 90,
       barWidth: 3,
       barGap: 2,
       barRadius: 3,
       normalize: true,
+      interact: true,
     });
 
     waveSurferRef.current = waveSurfer;
@@ -88,16 +97,15 @@ function App() {
     waveSurfer.on("error", () => {
       if (!cancelled) {
         setWaveformError(
-          "This audio could not be played in your browser. You can still try uploading it to the backend.",
+          "Unable to generate the audio waveform. Please try another audio file.",
         );
-        setIsPlaying(false);
       }
     });
 
     waveSurfer.load(objectUrl).catch(() => {
       if (!cancelled) {
         setWaveformError(
-          "Waveform preview is unavailable for this file. You can still try uploading it.",
+          "Unable to load this audio file for playback.",
         );
       }
     });
@@ -105,57 +113,47 @@ function App() {
     return () => {
       cancelled = true;
       waveSurfer.destroy();
-
-      if (waveSurferRef.current === waveSurfer) {
-        waveSurferRef.current = null;
-      }
-
+      waveSurferRef.current = null;
       URL.revokeObjectURL(objectUrl);
     };
   }, [audioFile]);
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
+  const formatTime = (time: number): string => {
+    if (!Number.isFinite(time)) return "0:00";
 
-    if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(1)} KB`;
-    }
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
 
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
+  const formatSize = (bytes: number): string => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const formatTime = (seconds: number) => {
-    if (!Number.isFinite(seconds)) return "0:00";
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-
-    return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
-  };
-
-  const handleFile = (file?: File) => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-
-    if (!file) return;
-
+  const validateFile = (file: File): string => {
     if (!SUPPORTED_EXTENSIONS.test(file.name)) {
-      setError(
-        "Unsupported file format. Please choose WAV, MP3, FLAC, or OGG.",
-      );
-      return;
+      return "Unsupported file format. Please upload WAV, MP3, FLAC, or OGG audio.";
     }
 
     if (file.size === 0) {
-      setError("This file is empty. Please choose a valid audio file.");
-      return;
+      return "The selected audio file is empty.";
     }
 
     if (file.size > MAX_FILE_SIZE) {
-      setError(
-        "This file exceeds the 20 MB limit. Please choose a smaller file.",
-      );
+      return "File size exceeds the 20 MB limit.";
+    }
+
+    return "";
+  };
+
+  const handleFile = (file?: File) => {
+    if (!file) return;
+
+    const validationError = validateFile(file);
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -163,6 +161,7 @@ function App() {
     setPredictionError("");
     setWaveformError("");
     setUploadResult(null);
+    setPredictionResult(null);
     setAnalysisStatus("ready");
     setAudioFile(file);
   };
@@ -170,19 +169,21 @@ function App() {
   const togglePlayback = async () => {
     const waveSurfer = waveSurferRef.current;
 
-    if (!waveSurfer || duration <= 0 || waveformError) return;
+    if (!waveSurfer || duration === 0) {
+      setWaveformError("Please wait until the waveform has loaded.");
+      return;
+    }
 
     try {
       await waveSurfer.playPause();
     } catch {
-      setWaveformError("Unable to play this audio file in your browser.");
+      setWaveformError("Unable to play this audio file.");
     }
   };
 
-  const removeAudio = () => {
-    if (isUploading) return;
-
+  const clearAudio = () => {
     waveSurferRef.current?.stop();
+
     setAudioFile(null);
     setError("");
     setPredictionError("");
@@ -192,6 +193,7 @@ function App() {
     setCurrentTime(0);
     setAnalysisStatus("idle");
     setUploadResult(null);
+    setPredictionResult(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -204,6 +206,8 @@ function App() {
     setError("");
     setPredictionError("");
     setUploadResult(null);
+    setPredictionResult(null);
+    setAnalysisStatus("ready");
     setIsUploading(true);
 
     try {
@@ -211,8 +215,24 @@ function App() {
       setUploadResult(result);
 
       try {
-        await predictAudio(audioFile);
-        setAnalysisStatus("unavailable");
+        const prediction = await predictAudio(audioFile);
+
+        if (
+          typeof prediction === "object" &&
+          prediction !== null &&
+          "prediction" in prediction &&
+          typeof prediction.prediction === "string"
+        ) {
+          const response = prediction as PredictionResponse;
+
+          setPredictionResult(response);
+          setAnalysisStatus("success");
+        } else {
+          setAnalysisStatus("unavailable");
+          setPredictionError(
+            "The prediction service returned an unsupported response format.",
+          );
+        }
       } catch (err) {
         setAnalysisStatus("unavailable");
         setPredictionError(
@@ -232,18 +252,26 @@ function App() {
     }
   };
 
+  const confidence =
+    typeof predictionResult?.confidence === "number" &&
+    Number.isFinite(predictionResult.confidence) &&
+    predictionResult.confidence >= 0 &&
+    predictionResult.confidence <= 1
+      ? predictionResult.confidence * 100
+      : null;
+
   return (
-    <div className="app-shell">
+    <main className="app-shell">
       <nav className="navbar">
-        <a className="brand" href="#home" aria-label="AcousticSpace home">
+        <div className="brand">
           <span className="brand-icon">
-            <AudioLines size={23} />
+            <AudioLines size={22} />
           </span>
           <span>AcousticSpace</span>
-        </a>
+        </div>
 
         <div className="nav-links">
-          <a href="#home">Home</a>
+          <a href="#home" className="active">Home</a>
           <a href="#analyzer">Audio Analyzer</a>
           <a href="#about">About RIR</a>
         </div>
@@ -251,247 +279,255 @@ function App() {
         <span className="research-badge">Research Preview</span>
       </nav>
 
-      <main>
-        <section className="hero-section" id="home">
-          <div className="hero-copy">
-            <span className="eyebrow">
-              <ShieldCheck size={15} />
-              AUDIO AUTHENTICITY RESEARCH
-            </span>
+      <section className="hero-section" id="home">
+        <div className="hero-content">
+          <span className="eyebrow">
+            <Fingerprint size={15} />
+            AUDIO AUTHENTICITY RESEARCH
+          </span>
 
-            <h1>
-              Hear beyond
-              <br />
-              the <span>surface.</span>
-            </h1>
+          <h1>
+            Hear beyond
+            <br />
+            <span>the surface.</span>
+          </h1>
 
-            <p>
-              Explore an approach to deepfake audio detection using Room Impulse
-              Response (RIR) characteristics and acoustic environments.
-            </p>
+          <p>
+            Explore audio authenticity through acoustic characteristics
+            and room impulse response analysis.
+          </p>
 
-            <a className="primary-button hero-button" href="#analyzer">
-              <Headphones size={18} />
-              Analyze audio
-            </a>
+          <a href="#analyzer" className="hero-button">
+            <Headphones size={18} />
+            Start analyzing
+          </a>
+        </div>
 
-            <div className="hero-features">
-              <span>
-                <ShieldCheck size={16} />
-                Privacy-conscious workflow
-              </span>
-              <span>
-                <Fingerprint size={16} />
-                Acoustic analysis research
-              </span>
-            </div>
+        <div className="hero-visual">
+          <div className="visual-glow" />
+          <div className="sound-card">
+            <AudioLines size={100} strokeWidth={1} />
+            <span>ACOUSTIC ANALYSIS</span>
           </div>
+        </div>
+      </section>
 
-          <div className="hero-visual" aria-hidden="true">
-            <div className="hero-orb">
-              <div className="orb-ring orb-ring-one" />
-              <div className="orb-ring orb-ring-two" />
-              <div className="orb-ring orb-ring-three" />
-              <AudioLines size={76} strokeWidth={1.2} />
-            </div>
-            <div className="floating-label floating-label-top">
-              <AudioLines size={16} />
-              Acoustic signals
-            </div>
-            <div className="floating-label floating-label-bottom">
-              <BrainCircuit size={17} />
-              RIR-based research
-            </div>
-          </div>
-        </section>
+      <section className="analyzer-section" id="analyzer">
+        <div className="section-heading">
+          <span className="eyebrow">WORKSPACE</span>
+          <h2>Audio Analyzer</h2>
+          <p>
+            Upload an audio recording to begin the analysis workflow.
+          </p>
+        </div>
 
-        <section className="analyzer-section" id="analyzer">
-          <div className="section-heading">
-            <div>
-              <span className="eyebrow">YOUR WORKSPACE</span>
-              <h2>Audio Analyzer</h2>
-              <p>
-                Upload an audio sample to preview it and send it to the
-                AcousticSpace backend.
-              </p>
-            </div>
-
-            <span className="file-limit">
-              <FileAudio size={15} />
-              Max. 20 MB
-            </span>
-          </div>
-
-          <div className="analyzer-grid">
-            <section className="upload-panel">
-              <div className="panel-heading">
-                <span className="step-number">01</span>
-                <div>
-                  <h3>Upload your audio</h3>
-                  <p>Select a supported audio file to get started.</p>
-                </div>
+        <div className="analyzer-grid">
+          <section className="upload-panel">
+            <div className="panel-heading">
+              <span className="step-number">01</span>
+              <div>
+                <h3>Upload audio</h3>
+                <p>Select a recording for analysis.</p>
               </div>
+            </div>
 
-              <input
-                ref={fileInputRef}
-                className="visually-hidden"
-                type="file"
-                accept=".wav,.mp3,.flac,.ogg,audio/wav,audio/mpeg,audio/flac,audio/ogg"
-                onChange={(event) => handleFile(event.target.files?.[0])}
-              />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".wav,.mp3,.flac,.ogg,audio/*"
+              hidden
+              onChange={(event) =>
+                handleFile(event.target.files?.[0])
+              }
+            />
 
-              {!audioFile ? (
-                <button
-                  className="drop-zone"
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    handleFile(event.dataTransfer.files[0]);
-                  }}
-                >
-                  <span className="upload-icon">
-                    <FileUp size={27} />
-                  </span>
-                  <strong>Drop your audio file here</strong>
-                  <span>or click to browse your files</span>
-                  <span className="supported-formats">
-                    WAV · MP3 · FLAC · OGG
-                  </span>
-                </button>
-              ) : (
-                <div className="selected-file">
+            {!audioFile ? (
+              <button
+                type="button"
+                className="drop-zone"
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  handleFile(event.dataTransfer.files?.[0]);
+                }}
+              >
+                <span className="upload-icon">
+                  <FileUp size={30} />
+                </span>
+                <strong>Drop your audio file here</strong>
+                <span>or click to browse files</span>
+                <small>WAV, MP3, FLAC, OGG · Maximum 20 MB</small>
+              </button>
+            ) : (
+              <div className="selected-file">
+                <div className="file-details">
                   <span className="file-icon">
                     <FileAudio size={23} />
                   </span>
-
-                  <div className="file-details">
-                    <strong title={audioFile.name}>{audioFile.name}</strong>
+                  <div>
+                    <strong>{audioFile.name}</strong>
                     <span>{formatSize(audioFile.size)}</span>
                   </div>
-
                   <button
                     type="button"
-                    className="remove-file"
-                    onClick={removeAudio}
-                    disabled={isUploading}
-                    aria-label="Remove selected audio"
-                    title="Remove audio"
+                    className="icon-button"
+                    onClick={clearAudio}
+                    aria-label="Remove audio file"
                   >
                     <X size={18} />
                   </button>
                 </div>
-              )}
 
-              {error && (
-                <p className="error-message" role="alert">
-                  {error}
-                </p>
-              )}
-
-              {audioFile && (
-                <div className="waveform-panel">
-                  <div className="waveform-heading">
-                    <span>
-                      <AudioLines size={16} />
-                      Audio waveform
-                    </span>
-                    <span>{formatTime(duration)}</span>
-                  </div>
-
-                  <div className="waveform-canvas" ref={waveformRef} />
+                <div className="waveform-container">
+                  <div
+                    ref={waveformRef}
+                    className="waveform-canvas"
+                  />
 
                   {waveformError && (
-                    <p className="error-message" role="status">
+                    <p className="error-message" role="alert">
                       {waveformError}
                     </p>
                   )}
 
                   <div className="waveform-controls">
                     <button
-                      className="waveform-play-button"
                       type="button"
+                      className="waveform-play-button"
                       onClick={togglePlayback}
-                      disabled={duration <= 0 || Boolean(waveformError)}
+                      disabled={duration === 0}
+                      aria-label={isPlaying ? "Pause audio" : "Play audio"}
                     >
-                      {isPlaying ? "Pause audio" : "Play audio"}
+                      {isPlaying ? "Pause" : "Play"}
                     </button>
 
-                    <span className="audio-time">
+                    <span className="waveform-time">
                       {formatTime(currentTime)} / {formatTime(duration)}
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="error-message" role="alert">
+                {error}
+              </div>
+            )}
+
+            <div className="privacy-note">
+              <ShieldCheck size={18} />
+              <p>
+                Your file is sent to the configured backend only when you
+                click Upload audio. Avoid uploading sensitive recordings.
+              </p>
+            </div>
+
+            <button
+              className="primary-button upload-action"
+              type="button"
+              onClick={handleUpload}
+              disabled={!audioFile || isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <AudioLines size={18} />
+                  Uploading and checking prediction...
+                </>
+              ) : (
+                <>
+                  <FileUp size={18} />
+                  Upload audio
+                </>
               )}
+            </button>
+          </section>
 
-              <div className="privacy-note">
-                <ShieldCheck size={17} />
+          <section className="results-panel">
+            <div className="panel-heading">
+              <span className="step-number">02</span>
+              <div>
+                <h3>Analysis results</h3>
+                <p>Backend upload status and model readiness.</p>
+              </div>
+            </div>
+
+            {uploadResult ? (
+              <div className="empty-results upload-complete">
+                <span className="result-icon">
+                  <CheckCircle2 size={30} />
+                </span>
+
+                <h3>Audio uploaded successfully</h3>
                 <p>
-                  Your file is sent to the configured backend only when you
-                  click Upload audio. Avoid uploading sensitive recordings.
+                  The backend confirmed that your audio file was received.
                 </p>
-              </div>
 
-              <button
-                className="primary-button upload-action"
-                type="button"
-                onClick={handleUpload}
-                disabled={!audioFile || isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    <AudioLines size={18} />
-                    Uploading and checking prediction...
-                  </>
-                ) : (
-                  <>
-                    <FileUp size={18} />
-                    Upload audio
-                  </>
-                )}
-              </button>
-            </section>
-
-            <section className="results-panel">
-              <div className="panel-heading">
-                <span className="step-number">02</span>
-                <div>
-                  <h3>Analysis results</h3>
-                  <p>Backend upload status and model readiness.</p>
-                </div>
-              </div>
-
-              {uploadResult ? (
-                <div className="empty-results upload-complete">
-                  <span className="result-icon">
-                    <CheckCircle2 size={30} />
-                  </span>
-
-                  <h3>Audio uploaded successfully</h3>
-                  <p>
-                    The backend confirmed that your audio file was received.
-                  </p>
-
-                  <div className="upload-result-details">
-                    <div>
-                      <span>Server status</span>
-                      <strong>{uploadResult.status}</strong>
-                    </div>
-                    <div>
-                      <span>Original filename</span>
-                      <strong>{uploadResult.filename}</strong>
-                    </div>
-                    <div>
-                      <span>Saved filename</span>
-                      <strong>{uploadResult.saved_filename}</strong>
-                    </div>
-                    <div>
-                      <span>Received size</span>
-                      <strong>{formatSize(uploadResult.size_bytes)}</strong>
-                    </div>
+                <div className="upload-result-details">
+                  <div>
+                    <span>Server status</span>
+                    <strong>{uploadResult.status}</strong>
                   </div>
+                  <div>
+                    <span>Original filename</span>
+                    <strong>{uploadResult.filename}</strong>
+                  </div>
+                  <div>
+                    <span>Saved filename</span>
+                    <strong>{uploadResult.saved_filename}</strong>
+                  </div>
+                  <div>
+                    <span>Received size</span>
+                    <strong>{formatSize(uploadResult.size_bytes)}</strong>
+                  </div>
+                </div>
 
+                {analysisStatus === "success" && predictionResult ? (
+                  <div className="confidence-panel">
+                    <div className="confidence-heading">
+                      <span>Prediction result</span>
+                      <span className="confidence-status">Available</span>
+                    </div>
+
+                    <h3>{predictionResult.prediction}</h3>
+
+                    <div className="confidence-heading">
+                      <span>Prediction confidence</span>
+                      <span className="confidence-status">
+                        {confidence !== null
+                          ? `${confidence.toFixed(1)}%`
+                          : "Not provided"}
+                      </span>
+                    </div>
+
+                    <div
+                      className="confidence-track"
+                      role="meter"
+                      aria-label="Prediction confidence"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={confidence ?? 0}
+                      aria-valuetext={
+                        confidence !== null
+                          ? `${confidence.toFixed(1)} percent`
+                          : "No confidence score returned"
+                      }
+                    >
+                      <div
+                        className="confidence-fill"
+                        style={{ width: `${confidence ?? 0}%` }}
+                      />
+                    </div>
+
+                    {confidence === null && (
+                      <p className="confidence-message">
+                        The backend returned a prediction without a
+                        valid confidence score.
+                      </p>
+                    )}
+                  </div>
+                ) : (
                   <div className="confidence-panel">
                     <div className="confidence-heading">
                       <span>Prediction confidence</span>
@@ -507,77 +543,75 @@ function App() {
                     </div>
 
                     <p className="confidence-message">
-                      No confidence score is available because the backend
+                      No confidence score is available because backend
                       model inference is not configured.
                     </p>
                   </div>
+                )}
 
-                  <div className="research-note">
-                    <BrainCircuit size={19} />
-                    <div>
-                      <strong>
-                        {predictionError
+                <div className="research-note">
+                  <BrainCircuit size={19} />
+                  <div>
+                    <strong>
+                      {analysisStatus === "success"
+                        ? "Prediction completed"
+                        : predictionError
                           ? "Prediction unavailable"
                           : "Prediction status"}
-                      </strong>
-                      <p>
-                        {predictionError ||
+                    </strong>
+                    <p>
+                      {analysisStatus === "success"
+                        ? "The backend returned a prediction response."
+                        : predictionError ||
                           "The backend did not return a prediction result."}
-                      </p>
-                    </div>
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <div className="empty-results">
-                  <span className="result-icon">
-                    {isUploading ? (
-                      <AudioLines size={30} />
-                    ) : (
-                      <BrainCircuit size={30} />
-                    )}
-                  </span>
-
-                  <h3>
-                    {isUploading
-                      ? "Uploading your audio"
-                      : analysisStatus === "unavailable"
-                        ? "Prediction unavailable"
-                        : audioFile
-                          ? "Ready to upload"
-                          : "Waiting for audio"}
-                  </h3>
-
-                  <p>
-                    {isUploading
-                      ? "Please wait while the backend receives your file and checks prediction availability."
-                      : audioFile
-                        ? "Your audio is selected. Upload it to check backend and prediction availability."
-                        : "Choose an audio file to prepare your workspace."}
-                  </p>
-
-                  {!audioFile && (
-                    <span className="waiting-indicator">
-                      <span className="status-dot" />
-                      Waiting for input
-                    </span>
+              </div>
+            ) : (
+              <div className="empty-results">
+                <span className="result-icon">
+                  {isUploading ? (
+                    <AudioLines size={30} />
+                  ) : (
+                    <BrainCircuit size={30} />
                   )}
-                </div>
-              )}
-            </section>
-          </div>
-        </section>
-      </main>
+                </span>
 
-      <footer className="footer">
-        <a className="brand footer-brand" href="#home">
+                <h3>
+                  {isUploading
+                    ? "Uploading your audio"
+                    : analysisStatus === "unavailable"
+                      ? "Prediction unavailable"
+                      : audioFile
+                        ? "Ready to upload"
+                        : "Waiting for audio"}
+                </h3>
+
+                <p>
+                  {isUploading
+                    ? "Please wait while the backend receives your recording."
+                    : "Upload an audio file to see its backend status and prediction readiness here."}
+                </p>
+              </div>
+            )}
+          </section>
+        </div>
+      </section>
+
+      <footer className="footer" id="about">
+        <div className="brand">
           <span className="brand-icon">
-            <AudioLines size={19} />
+            <AudioLines size={20} />
           </span>
           <span>AcousticSpace</span>
-        </a>
-        <p>Deepfake audio detection research · Research Preview</p>
+        </div>
+        <p>
+          Deepfake detection research through Room Impulse Response.
+        </p>
+        <span>Research Preview · AcousticSpace</span>
       </footer>
-    </div>
+    </main>
   );
 }
 

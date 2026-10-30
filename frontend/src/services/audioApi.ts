@@ -1,3 +1,4 @@
+
 /**
  * AcousticSpace - Audio API Service
  * Connects the frontend to the FastAPI backend.
@@ -12,6 +13,35 @@ export interface AudioUploadResponse {
   saved_filename: string;
   size_bytes: number;
   status: string;
+}
+
+async function getResponseData(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(
+      `The server returned an invalid response (${response.status}).`,
+    );
+  }
+}
+
+function getErrorMessage(data: unknown, fallback: string): string {
+  if (typeof data === "object" && data !== null) {
+    const responseData = data as {
+      detail?: unknown;
+      message?: unknown;
+    };
+
+    if (typeof responseData.detail === "string") {
+      return responseData.detail;
+    }
+
+    if (typeof responseData.message === "string") {
+      return responseData.message;
+    }
+  }
+
+  return fallback;
 }
 
 export async function checkBackendHealth(): Promise<boolean> {
@@ -48,30 +78,23 @@ export async function uploadAudio(
     );
   }
 
+  const data = await getResponseData(response);
+
   if (!response.ok) {
-    let message = `Upload failed (${response.status}).`;
-
-    try {
-      const data = await response.json();
-
-      if (typeof data.detail === "string") {
-        message = data.detail;
-      }
-    } catch {
-      // Keep the default error message if the response is not JSON.
-    }
-
-    throw new Error(message);
+    throw new Error(
+      getErrorMessage(data, `Upload failed (${response.status}).`),
+    );
   }
 
-  return (await response.json()) as AudioUploadResponse;
+  return data as AudioUploadResponse;
 }
 
 /**
  * Sends audio to the prediction endpoint.
- * The current backend returns HTTP 503 until model inference is configured.
+ * The backend currently returns HTTP 503 until model inference
+ * and audio preprocessing are configured.
  */
-export async function predictAudio(file: File): Promise<never> {
+export async function predictAudio(file: File): Promise<unknown> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -88,28 +111,15 @@ export async function predictAudio(file: File): Promise<never> {
     );
   }
 
-  let data: { detail?: string };
+  const data = await getResponseData(response);
 
-  try {
-    data = await response.json();
-  } catch {
+  if (!response.ok) {
     throw new Error(
-      `Prediction service returned an invalid response (${response.status}).`,
+      getErrorMessage(data, `Prediction failed (${response.status}).`),
     );
   }
 
-    if (!response.ok) {
-    throw new Error(
-      typeof data.detail === "string"
-        ? data.detail
-        : `Prediction failed (${response.status}).`,
-    );
-  }
-
-  throw new Error(
-    "The prediction endpoint responded, but no prediction result was processed.",
-  );
+  return data;
 }
-
 
 export { API_BASE_URL };
