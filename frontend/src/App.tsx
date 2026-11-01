@@ -32,6 +32,7 @@ function App() {
   const [predictionError, setPredictionError] = useState("");
   const [waveformError, setWaveformError] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [analysisStatus, setAnalysisStatus] =
@@ -104,9 +105,7 @@ function App() {
 
     waveSurfer.load(objectUrl).catch(() => {
       if (!cancelled) {
-        setWaveformError(
-          "Unable to load this audio file for playback.",
-        );
+        setWaveformError("Unable to load this audio file for playback.");
       }
     });
 
@@ -154,6 +153,17 @@ function App() {
 
     if (validationError) {
       setError(validationError);
+      setPredictionError("");
+      setWaveformError("");
+      setUploadResult(null);
+      setPredictionResult(null);
+      setAnalysisStatus("idle");
+      setAudioFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
       return;
     }
 
@@ -189,6 +199,7 @@ function App() {
     setPredictionError("");
     setWaveformError("");
     setIsPlaying(false);
+    setIsDragging(false);
     setDuration(0);
     setCurrentTime(0);
     setAnalysisStatus("idle");
@@ -336,19 +347,31 @@ function App() {
               type="file"
               accept=".wav,.mp3,.flac,.ogg,audio/*"
               hidden
-              onChange={(event) =>
-                handleFile(event.target.files?.[0])
-              }
+              onChange={(event) => handleFile(event.target.files?.[0])}
             />
 
             {!audioFile ? (
               <button
                 type="button"
-                className="drop-zone"
+                className={`drop-zone ${isDragging ? "dragging" : ""}`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDragging(true);
+                }}
                 onDragOver={(event) => event.preventDefault()}
+                onDragLeave={(event) => {
+                  if (
+                    !event.currentTarget.contains(
+                      event.relatedTarget as Node | null,
+                    )
+                  ) {
+                    setIsDragging(false);
+                  }
+                }}
                 onDrop={(event) => {
                   event.preventDefault();
+                  setIsDragging(false);
                   handleFile(event.dataTransfer.files?.[0]);
                 }}
               >
@@ -444,7 +467,11 @@ function App() {
             </button>
           </section>
 
-          <section className="results-panel">
+          <section
+            className="results-panel"
+            aria-live="polite"
+            aria-busy={isUploading}
+          >
             <div className="panel-heading">
               <span className="step-number">02</span>
               <div>
