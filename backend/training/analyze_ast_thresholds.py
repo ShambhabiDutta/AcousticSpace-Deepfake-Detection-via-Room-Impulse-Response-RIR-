@@ -22,6 +22,7 @@ from train_ast import (
 
 
 def main():
+    torch.set_num_threads(2)
     protocol = (
         DATA_ROOT
         / "ASVspoof2019_LA_cm_protocols"
@@ -29,7 +30,7 @@ def main():
     )
     audio_dir = DATA_ROOT / "ASVspoof2019_LA_dev" / "flac"
 
-    records = balanced_subset(read_protocol(protocol), 2500, 42)
+    records = balanced_subset(read_protocol(protocol), 500, 42)
 
     extractor = ASTFeatureExtractor.from_pretrained(OUTPUT_DIR)
     model = ASTForAudioClassification.from_pretrained(OUTPUT_DIR).eval()
@@ -50,7 +51,7 @@ def main():
             actual.extend(labels.tolist())
             spoof_probabilities.extend(probabilities[:, 1].tolist())
 
-    print("Threshold analysis - 1,000 development samples")
+    print(f"Threshold analysis - {len(records):,} development samples")
     print("Threshold | Accuracy | Balanced Acc | Spoof Precision | Spoof Recall | Spoof F1")
 
     for threshold in [0.30, 0.40, 0.50, 0.60, 0.70]:
@@ -71,8 +72,7 @@ def main():
         if threshold == 0.50:
             print("Confusion matrix at 0.50:")
             print(confusion_matrix(actual, predicted, labels=[0, 1]))
-            print(confusion_matrix(actual, predicted, labels=[0, 1]))
-
+            
 
 if __name__ == "__main__":
     main()
