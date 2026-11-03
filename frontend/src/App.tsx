@@ -35,11 +35,15 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+
   const [analysisStatus, setAnalysisStatus] =
     useState<AnalysisStatus>("idle");
+
   const [isUploading, setIsUploading] = useState(false);
+
   const [uploadResult, setUploadResult] =
     useState<AudioUploadResponse | null>(null);
+
   const [predictionResult, setPredictionResult] =
     useState<PredictionResponse | null>(null);
 
@@ -282,7 +286,9 @@ function App() {
         </div>
 
         <div className="nav-links">
-          <a href="#home" className="active">Home</a>
+          <a href="#home" className="active">
+            Home
+          </a>
           <a href="#analyzer">Audio Analyzer</a>
           <a href="#about">About RIR</a>
         </div>
@@ -403,10 +409,7 @@ function App() {
                 </div>
 
                 <div className="waveform-container">
-                  <div
-                    ref={waveformRef}
-                    className="waveform-canvas"
-                  />
+                  <div ref={waveformRef} className="waveform-canvas" />
 
                   {waveformError && (
                     <p className="error-message" role="alert">
