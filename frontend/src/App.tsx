@@ -5,16 +5,19 @@ import {
   AudioLines,
   BrainCircuit,
   CheckCircle2,
+  Clock3,
   FileAudio,
   FileUp,
   Fingerprint,
   Headphones,
+  History,
   ShieldCheck,
   X,
 } from "lucide-react";
 import "./App.css";
 import { predictAudio, uploadAudio } from "./services/audioApi";
 import type { AudioUploadResponse } from "./services/audioApi";
+import type { AnalysisRecord } from "./types/analysis";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 const SUPPORTED_EXTENSIONS = /\.(wav|mp3|flac|ogg)$/i;
@@ -46,6 +49,15 @@ function App() {
 
   const [predictionResult, setPredictionResult] =
     useState<PredictionResponse | null>(null);
+
+  // Analysis history state
+  const [analysisHistory] = useState<AnalysisRecord[]>([]);
+  const [selectedAnalysisId, setSelectedAnalysisId] =
+    useState<string | null>(null);
+
+  const selectedAnalysis =
+    analysisHistory.find((record) => record.id === selectedAnalysisId) ??
+    null;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
@@ -132,6 +144,16 @@ function App() {
 
   const formatSize = (bytes: number): string => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatDate = (date: string): string => {
+    const parsedDate = new Date(date);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return "Date unavailable";
+    }
+
+    return parsedDate.toLocaleString();
   };
 
   const validateFile = (file: File): string => {
@@ -275,6 +297,19 @@ function App() {
       ? predictionResult.confidence * 100
       : null;
 
+  const getStatusLabel = (status: AnalysisRecord["status"]) => {
+    switch (status) {
+      case "completed":
+        return "Completed";
+      case "uploaded":
+        return "Uploaded";
+      case "unavailable":
+        return "Prediction unavailable";
+      default:
+        return "Unknown";
+    }
+  };
+
   return (
     <main className="app-shell">
       <nav className="navbar">
@@ -290,6 +325,7 @@ function App() {
             Home
           </a>
           <a href="#analyzer">Audio Analyzer</a>
+          <a href="#history">History</a>
           <a href="#about">About RIR</a>
         </div>
 
@@ -626,6 +662,144 @@ function App() {
               </div>
             )}
           </section>
+        </div>
+      </section>
+
+      {/* Analysis History */}
+      <section className="history-section" id="history">
+        <div className="section-heading">
+          <div>
+            <span className="eyebrow">YOUR WORKSPACE</span>
+            <h2>Analysis History</h2>
+            <p>
+              Review your previous audio uploads and analysis results.
+            </p>
+          </div>
+
+          <span className="history-count">
+            {analysisHistory.length}{" "}
+            {analysisHistory.length === 1 ? "record" : "records"}
+          </span>
+        </div>
+
+        <div className="history-panel">
+          <div className="history-panel-heading">
+            <div className="history-title">
+              <span className="history-icon">
+                <History size={20} />
+              </span>
+              <div>
+                <h3>Previous analyses</h3>
+                <p>Your uploaded audio analysis records.</p>
+              </div>
+            </div>
+          </div>
+
+          {analysisHistory.length === 0 ? (
+            <div className="history-empty">
+              <span className="history-empty-icon">
+                <FileAudio size={30} />
+              </span>
+
+              <h3>No analysis history yet</h3>
+
+              <p>
+                Your previous audio analyses will appear here after
+                you upload and process audio recordings.
+              </p>
+
+              <a href="#analyzer" className="history-action">
+                <FileUp size={16} />
+                Upload your first audio
+              </a>
+            </div>
+          ) : (
+            <div className="history-content">
+              <div className="history-list">
+                {analysisHistory.map((record) => (
+                  <button
+                    type="button"
+                    key={record.id}
+                    className={`history-record ${
+                      selectedAnalysisId === record.id ? "selected" : ""
+                    }`}
+                    onClick={() => setSelectedAnalysisId(record.id)}
+                    aria-pressed={selectedAnalysisId === record.id}
+                  >
+                    <span className="history-record-icon">
+                      <FileAudio size={19} />
+                    </span>
+
+                    <span className="history-record-info">
+                      <strong>{record.filename}</strong>
+                      <span>
+                        <Clock3 size={12} />
+                        {formatDate(record.createdAt)}
+                      </span>
+                    </span>
+
+                    <span
+                      className={`history-status status-${record.status}`}
+                    >
+                      {getStatusLabel(record.status)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {selectedAnalysis && (
+                <div className="history-detail">
+                  <div className="history-detail-heading">
+                    <h3>Selected analysis</h3>
+                    <span
+                      className={`history-status status-${selectedAnalysis.status}`}
+                    >
+                      {getStatusLabel(selectedAnalysis.status)}
+                    </span>
+                  </div>
+
+                  <div className="history-detail-grid">
+                    <div>
+                      <span>Filename</span>
+                      <strong>{selectedAnalysis.filename}</strong>
+                    </div>
+
+                    <div>
+                      <span>Analysis date</span>
+                      <strong>{formatDate(selectedAnalysis.createdAt)}</strong>
+                    </div>
+
+                    <div>
+                      <span>Prediction</span>
+                      <strong>
+                        {selectedAnalysis.prediction ?? "Not available"}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span>Confidence</span>
+                      <strong>
+                        {typeof selectedAnalysis.confidence === "number" &&
+                        Number.isFinite(selectedAnalysis.confidence) &&
+                        selectedAnalysis.confidence >= 0 &&
+                        selectedAnalysis.confidence <= 1
+                          ? `${(
+                              selectedAnalysis.confidence * 100
+                            ).toFixed(1)}%`
+                          : "Not available"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {selectedAnalysis.predictionError && (
+                    <p className="history-error">
+                      {selectedAnalysis.predictionError}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
