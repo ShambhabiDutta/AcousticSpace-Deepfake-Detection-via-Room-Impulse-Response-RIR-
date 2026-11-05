@@ -7,3 +7,4 @@ httpx
 numpy
 torch
 librosa
+transformers==5.21.0

@@ -9,8 +9,8 @@ import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-# Add the project root so audio_ml imports work when Uvicorn
-# is started from either the project root or backend directory.
+# Add the project root so imports work when Uvicorn is started
+# from either the project root or the backend directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 if str(PROJECT_ROOT) not in sys.path:
@@ -18,12 +18,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from audio_ml.feature_extractor import extract_fixed_length_spectrogram
 from audio_ml.train_baseline import summarize_spectrograms
+from backend.ast_inference import AudioDecodeError, predict_ast_file
 
 
 app = FastAPI(
     title="AcousticSpace API",
     description="Backend API for audio deepfake detection research",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 # Allow the local React frontend to communicate with FastAPI.
@@ -38,12 +39,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Paths and model settings
+# Paths and model settings.
 UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_PATH = PROJECT_ROOT / "audio_ml" / "models" / "baseline_logreg.joblib"
+
+# Existing Logistic Regression threshold.
 PREDICTION_THRESHOLD = 0.70
+
+# Provisional AST threshold.
+# Revisit this after the full ASVspoof2019 LA dev evaluation finishes.
+AST_PREDICTION_THRESHOLD = 0.50
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
@@ -51,7 +58,8 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 if not MODEL_PATH.is_file():
     raise FileNotFoundError(f"Trained model not found: {MODEL_PATH}")
 
-# Load the trained model once when the API starts.
+# Load the existing Logistic Regression model once when the API starts.
+# The AST model is loaded separately and lazily by ast_inference.py.
 model = joblib.load(MODEL_PATH)
 
 
@@ -114,19 +122,21 @@ async def upload_audio(file: UploadFile = File(...)):
             "size_bytes": len(content),
             "status": "uploaded",
         }
+
     finally:
         await file.close()
 
 
 @app.post("/predict")
 async def predict_audio(file: UploadFile = File(...)):
+    """Existing Logistic Regression prediction endpoint."""
+
     temp_path = None
 
     try:
         original_name, extension, content = await read_audio_upload(file)
 
-        # Save temporarily so the existing audio preprocessing pipeline
-        # can decode the file. The temporary file is deleted afterward.
+        # Save temporarily for audio preprocessing.
         with tempfile.NamedTemporaryFile(
             suffix=extension,
             delete=False,
@@ -150,6 +160,7 @@ async def predict_audio(file: UploadFile = File(...)):
             X = summarize_spectrograms(batch)
 
             spoof_probability = float(model.predict_proba(X)[0, 1])
+
         except Exception as exc:
             raise HTTPException(
                 status_code=500,
@@ -168,11 +179,87 @@ async def predict_audio(file: UploadFile = File(...)):
             else "real"
         )
 
+        confidence = (
+            spoof_probability
+            if prediction == "spoof"
+            else 1.0 - spoof_probability
+        )
+
         return {
             "filename": original_name,
+            "model": "Logistic Regression",
             "prediction": prediction,
             "spoof_probability": round(spoof_probability, 4),
+            "confidence": round(confidence, 4),
             "threshold": PREDICTION_THRESHOLD,
+            "status": "success",
+        }
+
+    finally:
+        await file.close()
+
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+@app.post("/predict/ast")
+async def predict_audio_ast(file: UploadFile = File(...)):
+    """AST-based audio deepfake prediction endpoint."""
+
+    temp_path = None
+
+    try:
+        original_name, extension, content = await read_audio_upload(file)
+
+        # Save the uploaded audio temporarily.
+        with tempfile.NamedTemporaryFile(
+            suffix=extension,
+            delete=False,
+        ) as temp_file:
+            temp_file.write(content)
+            temp_path = Path(temp_file.name)
+
+        # Run inference using the separately saved AST model.
+        try:
+            spoof_probability = predict_ast_file(temp_path)
+
+        except AudioDecodeError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="AST prediction failed while processing the audio.",
+            ) from exc
+
+        if not np.isfinite(spoof_probability):
+            raise HTTPException(
+                status_code=500,
+                detail="The AST model returned an invalid prediction score.",
+            )
+
+        prediction = (
+            "spoof"
+            if spoof_probability >= AST_PREDICTION_THRESHOLD
+            else "real"
+        )
+
+        confidence = (
+            spoof_probability
+            if prediction == "spoof"
+            else 1.0 - spoof_probability
+        )
+
+        return {
+            "filename": original_name,
+            "model": "AST",
+            "prediction": prediction,
+            "spoof_probability": round(spoof_probability, 4),
+            "confidence": round(confidence, 4),
+            "threshold": AST_PREDICTION_THRESHOLD,
             "status": "success",
         }
 
