@@ -41,7 +41,6 @@ function App() {
 
   const [analysisStatus, setAnalysisStatus] =
     useState<AnalysisStatus>("idle");
-
   const [isUploading, setIsUploading] = useState(false);
 
   const [uploadResult, setUploadResult] =
@@ -51,7 +50,9 @@ function App() {
     useState<PredictionResponse | null>(null);
 
   // Analysis history state
-  const [analysisHistory] = useState<AnalysisRecord[]>([]);
+  const [analysisHistory, setAnalysisHistory] =
+    useState<AnalysisRecord[]>([]);
+
   const [selectedAnalysisId, setSelectedAnalysisId] =
     useState<string | null>(null);
 
@@ -63,6 +64,7 @@ function App() {
   const waveformRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
 
+  // Initialize and manage the audio waveform.
   useEffect(() => {
     if (!audioFile || !waveformRef.current) return;
 
@@ -91,6 +93,7 @@ function App() {
 
     waveSurfer.on("ready", () => {
       if (cancelled) return;
+
       setDuration(waveSurfer.getDuration());
       setWaveformError("");
     });
@@ -133,6 +136,7 @@ function App() {
     };
   }, [audioFile]);
 
+  // Format seconds into minutes and seconds.
   const formatTime = (time: number): string => {
     if (!Number.isFinite(time)) return "0:00";
 
@@ -142,10 +146,12 @@ function App() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // Format file size in MB.
   const formatSize = (bytes: number): string => {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  // Format analysis date.
   const formatDate = (date: string): string => {
     const parsedDate = new Date(date);
 
@@ -156,6 +162,7 @@ function App() {
     return parsedDate.toLocaleString();
   };
 
+  // Validate uploaded audio files.
   const validateFile = (file: File): string => {
     if (!SUPPORTED_EXTENSIONS.test(file.name)) {
       return "Unsupported file format. Please upload WAV, MP3, FLAC, or OGG audio.";
@@ -172,6 +179,7 @@ function App() {
     return "";
   };
 
+  // Handle file selection and validation.
   const handleFile = (file?: File) => {
     if (!file) return;
 
@@ -202,6 +210,7 @@ function App() {
     setAudioFile(file);
   };
 
+  // Play or pause the selected audio.
   const togglePlayback = async () => {
     const waveSurfer = waveSurferRef.current;
 
@@ -217,6 +226,7 @@ function App() {
     }
   };
 
+  // Clear the currently selected audio.
   const clearAudio = () => {
     waveSurferRef.current?.stop();
 
@@ -237,6 +247,7 @@ function App() {
     }
   };
 
+  // Upload audio and save each successful upload in history.
   const handleUpload = async () => {
     if (!audioFile || isUploading) return;
 
@@ -248,9 +259,33 @@ function App() {
     setIsUploading(true);
 
     try {
+      // First, upload the audio file.
       const result = await uploadAudio(audioFile);
       setUploadResult(result);
 
+      // Create a unique history record.
+      const analysisId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const newRecord: AnalysisRecord = {
+        id: analysisId,
+        filename: result.filename,
+        createdAt: new Date().toISOString(),
+        status: "uploaded",
+        uploadResult: result,
+      };
+
+      // Add the new record without removing previous records.
+      setAnalysisHistory((previousHistory) => [
+        newRecord,
+        ...previousHistory,
+      ]);
+
+      setSelectedAnalysisId(analysisId);
+
+      // Request prediction after successful upload.
       try {
         const prediction = await predictAudio(audioFile);
 
@@ -262,20 +297,76 @@ function App() {
         ) {
           const response = prediction as PredictionResponse;
 
-          setPredictionResult(response);
+          const validConfidence =
+            typeof response.confidence === "number" &&
+            Number.isFinite(response.confidence) &&
+            response.confidence >= 0 &&
+            response.confidence <= 1;
+
+          const savedResponse: PredictionResponse = {
+            prediction: response.prediction,
+            ...(validConfidence
+              ? { confidence: response.confidence }
+              : {}),
+          };
+
+          setPredictionResult(savedResponse);
           setAnalysisStatus("success");
+          setPredictionError("");
+
+          // Update the matching history record.
+          setAnalysisHistory((previousHistory) =>
+            previousHistory.map((record) =>
+              record.id === analysisId
+                ? {
+                    ...record,
+                    prediction: savedResponse.prediction,
+                    confidence: savedResponse.confidence,
+                    status: "completed",
+                    predictionError: undefined,
+                  }
+                : record,
+            ),
+          );
         } else {
+          const message =
+            "The prediction service returned an unsupported response format.";
+
           setAnalysisStatus("unavailable");
-          setPredictionError(
-            "The prediction service returned an unsupported response format.",
+          setPredictionError(message);
+
+          setAnalysisHistory((previousHistory) =>
+            previousHistory.map((record) =>
+              record.id === analysisId
+                ? {
+                    ...record,
+                    status: "unavailable",
+                    predictionError: message,
+                  }
+                : record,
+            ),
           );
         }
       } catch (err) {
-        setAnalysisStatus("unavailable");
-        setPredictionError(
+        const message =
           err instanceof Error
             ? err.message
-            : "Prediction is currently unavailable. Please try again later.",
+            : "Prediction is currently unavailable. Please try again later.";
+
+        setAnalysisStatus("unavailable");
+        setPredictionError(message);
+
+        // Keep the upload in history even if prediction fails.
+        setAnalysisHistory((previousHistory) =>
+          previousHistory.map((record) =>
+            record.id === analysisId
+              ? {
+                  ...record,
+                  status: "unavailable",
+                  predictionError: message,
+                }
+              : record,
+          ),
         );
       }
     } catch (err) {
@@ -289,6 +380,7 @@ function App() {
     }
   };
 
+  // Validate and calculate prediction confidence.
   const confidence =
     typeof predictionResult?.confidence === "number" &&
     Number.isFinite(predictionResult.confidence) &&
@@ -297,14 +389,18 @@ function App() {
       ? predictionResult.confidence * 100
       : null;
 
+  // Convert history status into readable labels.
   const getStatusLabel = (status: AnalysisRecord["status"]) => {
     switch (status) {
       case "completed":
         return "Completed";
+
       case "uploaded":
         return "Uploaded";
+
       case "unavailable":
         return "Prediction unavailable";
+
       default:
         return "Unknown";
     }
@@ -430,10 +526,12 @@ function App() {
                   <span className="file-icon">
                     <FileAudio size={23} />
                   </span>
+
                   <div>
                     <strong>{audioFile.name}</strong>
                     <span>{formatSize(audioFile.size)}</span>
                   </div>
+
                   <button
                     type="button"
                     className="icon-button"
@@ -535,14 +633,17 @@ function App() {
                     <span>Server status</span>
                     <strong>{uploadResult.status}</strong>
                   </div>
+
                   <div>
                     <span>Original filename</span>
                     <strong>{uploadResult.filename}</strong>
                   </div>
+
                   <div>
                     <span>Saved filename</span>
                     <strong>{uploadResult.saved_filename}</strong>
                   </div>
+
                   <div>
                     <span>Received size</span>
                     <strong>{formatSize(uploadResult.size_bytes)}</strong>
@@ -617,6 +718,7 @@ function App() {
 
                 <div className="research-note">
                   <BrainCircuit size={19} />
+
                   <div>
                     <strong>
                       {analysisStatus === "success"
@@ -625,6 +727,7 @@ function App() {
                           ? "Prediction unavailable"
                           : "Prediction status"}
                     </strong>
+
                     <p>
                       {analysisStatus === "success"
                         ? "The backend returned a prediction response."
@@ -688,6 +791,7 @@ function App() {
               <span className="history-icon">
                 <History size={20} />
               </span>
+
               <div>
                 <h3>Previous analyses</h3>
                 <p>Your uploaded audio analysis records.</p>
@@ -702,7 +806,6 @@ function App() {
               </span>
 
               <h3>No analysis history yet</h3>
-
               <p>
                 Your previous audio analyses will appear here after
                 you upload and process audio recordings.
@@ -751,6 +854,7 @@ function App() {
                 <div className="history-detail">
                   <div className="history-detail-heading">
                     <h3>Selected analysis</h3>
+
                     <span
                       className={`history-status status-${selectedAnalysis.status}`}
                     >
@@ -766,7 +870,9 @@ function App() {
 
                     <div>
                       <span>Analysis date</span>
-                      <strong>{formatDate(selectedAnalysis.createdAt)}</strong>
+                      <strong>
+                        {formatDate(selectedAnalysis.createdAt)}
+                      </strong>
                     </div>
 
                     <div>
@@ -810,9 +916,11 @@ function App() {
           </span>
           <span>AcousticSpace</span>
         </div>
+
         <p>
           Deepfake detection research through Room Impulse Response.
         </p>
+
         <span>Research Preview · AcousticSpace</span>
       </footer>
     </main>
