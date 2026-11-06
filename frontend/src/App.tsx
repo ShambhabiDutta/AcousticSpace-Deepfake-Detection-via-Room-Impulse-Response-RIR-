@@ -736,6 +736,29 @@ function App() {
                     </p>
                   </div>
                 </div>
+                <div className="segment-panel">
+                  <div className="segment-heading">
+                    <div>
+                      <h4>Suspicious Segment Analysis</h4>
+                      <p>Timestamp-based audio inspection</p>
+                    </div>
+
+                    <span className="segment-status">
+                      Awaiting data
+                    </span>
+                  </div>
+
+                  <div className="segment-timeline">
+                    <div className="segment-timeline-line" />
+                    <p>No segment data available</p>
+                  </div>
+
+                  <p className="segment-message">
+                    Suspicious audio segments will be displayed here
+                    when the backend provides timestamped analysis data.
+                    No segments have been identified yet.
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="empty-results">
