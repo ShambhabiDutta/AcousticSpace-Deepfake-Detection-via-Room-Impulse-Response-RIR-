@@ -48,8 +48,7 @@ MODEL_PATH = PROJECT_ROOT / "audio_ml" / "models" / "baseline_logreg.joblib"
 # Existing Logistic Regression threshold.
 PREDICTION_THRESHOLD = 0.70
 
-# Provisional AST threshold.
-# Revisit this after the full ASVspoof2019 LA dev evaluation finishes.
+# Existing AST threshold. Keep unchanged pending further validation.
 AST_PREDICTION_THRESHOLD = 0.50
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
@@ -58,7 +57,7 @@ MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
 if not MODEL_PATH.is_file():
     raise FileNotFoundError(f"Trained model not found: {MODEL_PATH}")
 
-# Load the existing Logistic Regression model once when the API starts.
+# Load the Logistic Regression model once when the API starts.
 # The AST model is loaded separately and lazily by ast_inference.py.
 model = joblib.load(MODEL_PATH)
 
@@ -96,6 +95,59 @@ async def read_audio_upload(file: UploadFile) -> tuple[str, str, bytes]:
     return original_name, extension, content
 
 
+def validate_probability(probability: float, model_name: str) -> None:
+    """Ensure the model returned a valid spoof probability."""
+
+    if not np.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        raise HTTPException(
+            status_code=500,
+            detail=f"{model_name} returned an invalid prediction probability.",
+        )
+
+
+def build_prediction_response(
+    filename: str,
+    model_name: str,
+    spoof_probability: float,
+    threshold: float,
+) -> dict:
+    """Build a consistent prediction response for both models."""
+
+    prediction = (
+        "spoof"
+        if spoof_probability >= threshold
+        else "real"
+    )
+
+    real_probability = 1.0 - spoof_probability
+
+    confidence = (
+        spoof_probability
+        if prediction == "spoof"
+        else real_probability
+    )
+
+    return {
+        "filename": filename,
+        "model": model_name,
+        "prediction": prediction,
+        "class_probabilities": {
+            "real": round(real_probability, 4),
+            "spoof": round(spoof_probability, 4),
+        },
+        "spoof_probability": round(spoof_probability, 4),
+        "confidence": round(confidence, 4),
+        "analysis": {
+            "threshold": threshold,
+            "classification_rule": (
+                "spoof_probability >= threshold means spoof; "
+                "otherwise real"
+            ),
+        },
+        "status": "success",
+    }
+
+
 @app.get("/")
 def root():
     return {"message": "AcousticSpace API is running"}
@@ -129,7 +181,7 @@ async def upload_audio(file: UploadFile = File(...)):
 
 @app.post("/predict")
 async def predict_audio(file: UploadFile = File(...)):
-    """Existing Logistic Regression prediction endpoint."""
+    """Logistic Regression audio deepfake prediction endpoint."""
 
     temp_path = None
 
@@ -147,6 +199,7 @@ async def predict_audio(file: UploadFile = File(...)):
         # Produce the same 64 x 400 log-mel features used in training.
         try:
             spectrogram = extract_fixed_length_spectrogram(str(temp_path))
+
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
@@ -167,33 +220,14 @@ async def predict_audio(file: UploadFile = File(...)):
                 detail="Prediction failed while processing the audio.",
             ) from exc
 
-        if not np.isfinite(spoof_probability):
-            raise HTTPException(
-                status_code=500,
-                detail="The model returned an invalid prediction score.",
-            )
+        validate_probability(spoof_probability, "Logistic Regression")
 
-        prediction = (
-            "spoof"
-            if spoof_probability >= PREDICTION_THRESHOLD
-            else "real"
+        return build_prediction_response(
+            filename=original_name,
+            model_name="Logistic Regression",
+            spoof_probability=spoof_probability,
+            threshold=PREDICTION_THRESHOLD,
         )
-
-        confidence = (
-            spoof_probability
-            if prediction == "spoof"
-            else 1.0 - spoof_probability
-        )
-
-        return {
-            "filename": original_name,
-            "model": "Logistic Regression",
-            "prediction": prediction,
-            "spoof_probability": round(spoof_probability, 4),
-            "confidence": round(confidence, 4),
-            "threshold": PREDICTION_THRESHOLD,
-            "status": "success",
-        }
 
     finally:
         await file.close()
@@ -221,7 +255,7 @@ async def predict_audio_ast(file: UploadFile = File(...)):
 
         # Run inference using the separately saved AST model.
         try:
-            spoof_probability = predict_ast_file(temp_path)
+            spoof_probability = float(predict_ast_file(temp_path))
 
         except AudioDecodeError as exc:
             raise HTTPException(
@@ -235,33 +269,14 @@ async def predict_audio_ast(file: UploadFile = File(...)):
                 detail="AST prediction failed while processing the audio.",
             ) from exc
 
-        if not np.isfinite(spoof_probability):
-            raise HTTPException(
-                status_code=500,
-                detail="The AST model returned an invalid prediction score.",
-            )
+        validate_probability(spoof_probability, "AST")
 
-        prediction = (
-            "spoof"
-            if spoof_probability >= AST_PREDICTION_THRESHOLD
-            else "real"
+        return build_prediction_response(
+            filename=original_name,
+            model_name="AST",
+            spoof_probability=spoof_probability,
+            threshold=AST_PREDICTION_THRESHOLD,
         )
-
-        confidence = (
-            spoof_probability
-            if prediction == "spoof"
-            else 1.0 - spoof_probability
-        )
-
-        return {
-            "filename": original_name,
-            "model": "AST",
-            "prediction": prediction,
-            "spoof_probability": round(spoof_probability, 4),
-            "confidence": round(confidence, 4),
-            "threshold": AST_PREDICTION_THRESHOLD,
-            "status": "success",
-        }
 
     finally:
         await file.close()
