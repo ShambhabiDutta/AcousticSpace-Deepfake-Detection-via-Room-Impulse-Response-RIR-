@@ -1,0 +1,41 @@
+﻿{
+  "comparison_status": "Preliminary; evaluation sets differ",
+  "models": [
+    {
+      "model": "Logistic Regression",
+      "evaluation_set": "ASVspoof2019 LA training data; stratified 80/20 validation split",
+      "validation_samples": 5076,
+      "accuracy": 0.9224,
+      "balanced_accuracy": 0.9250,
+      "roc_auc": 0.9767
+    },
+    {
+      "model": "CNN Baseline",
+      "evaluation_set": "Same stratified 80/20 validation split as Logistic Regression",
+      "validation_samples": 5076,
+      "accuracy": 0.8883,
+      "balanced_accuracy": 0.7986,
+      "roc_auc": 0.9243
+    },
+    {
+      "model": "Pretrained AST",
+      "evaluation_set": "Full ASVspoof2019 LA development set",
+      "validation_samples": 24844,
+      "threshold": 0.3,
+      "accuracy": 0.7539,
+      "balanced_accuracy": 0.8217,
+      "roc_auc": 0.9069,
+      "fine_tuned": false
+    }
+  ],
+  "findings": [
+    "Logistic Regression outperformed CNN on their shared validation split.",
+    "AST achieved its highest balanced accuracy among the evaluated thresholds at 0.30.",
+    "AST results are not directly comparable with Logistic Regression or CNN because the evaluation sets differ."
+  ],
+  "next_work": [
+    "Evaluate all models using one consistent evaluation protocol.",
+    "Fine-tune AST when GPU resources are available.",
+    "Validate prediction API outputs and model selection."
+  ]
+}

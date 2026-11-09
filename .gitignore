@@ -37,3 +37,6 @@ audio_ml/features/feature_comparison_100_samples.png
 
 data/processed/*.npy
 data/processed/**/*.npy
+
+audio_ml/models/ast_attack_aware_smoke_test/
+audio_ml/models/ast_attack_aware_timing_test/

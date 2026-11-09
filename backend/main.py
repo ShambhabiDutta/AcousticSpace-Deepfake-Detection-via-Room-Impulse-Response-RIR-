@@ -19,6 +19,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from audio_ml.feature_extractor import extract_fixed_length_spectrogram
 from audio_ml.train_baseline import summarize_spectrograms
 from backend.ast_inference import AudioDecodeError, predict_ast_file
+from backend.cnn_inference import (
+    CNNAudioError,
+    CNNModelError,
+    predict_cnn_file,
+)
 
 
 app = FastAPI(
@@ -48,8 +53,11 @@ MODEL_PATH = PROJECT_ROOT / "audio_ml" / "models" / "baseline_logreg.joblib"
 # Existing Logistic Regression threshold.
 PREDICTION_THRESHOLD = 0.70
 
-# Existing AST threshold. Keep unchanged pending further validation.
+# Existing AST threshold.
 AST_PREDICTION_THRESHOLD = 0.50
+
+# CNN threshold is provisional and must be validated.
+CNN_PREDICTION_THRESHOLD = 0.50
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB
@@ -58,7 +66,7 @@ if not MODEL_PATH.is_file():
     raise FileNotFoundError(f"Trained model not found: {MODEL_PATH}")
 
 # Load the Logistic Regression model once when the API starts.
-# The AST model is loaded separately and lazily by ast_inference.py.
+# AST and CNN models are loaded separately by their inference modules.
 model = joblib.load(MODEL_PATH)
 
 
@@ -111,7 +119,7 @@ def build_prediction_response(
     spoof_probability: float,
     threshold: float,
 ) -> dict:
-    """Build a consistent prediction response for both models."""
+    """Build a consistent prediction response for all models."""
 
     prediction = (
         "spoof"
@@ -276,6 +284,61 @@ async def predict_audio_ast(file: UploadFile = File(...)):
             model_name="AST",
             spoof_probability=spoof_probability,
             threshold=AST_PREDICTION_THRESHOLD,
+        )
+
+    finally:
+        await file.close()
+
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+@app.post("/predict/cnn")
+async def predict_audio_cnn(file: UploadFile = File(...)):
+    """CNN-based audio deepfake prediction endpoint."""
+
+    temp_path = None
+
+    try:
+        original_name, extension, content = await read_audio_upload(file)
+
+        # Save the uploaded audio temporarily.
+        with tempfile.NamedTemporaryFile(
+            suffix=extension,
+            delete=False,
+        ) as temp_file:
+            temp_file.write(content)
+            temp_path = Path(temp_file.name)
+
+        # Run inference using the trained CNN model.
+        try:
+            spoof_probability = float(predict_cnn_file(temp_path))
+
+        except CNNAudioError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=str(exc),
+            ) from exc
+
+        except CNNModelError as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="CNN model is unavailable or could not complete prediction.",
+            ) from exc
+
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="CNN prediction failed while processing the audio.",
+            ) from exc
+
+        validate_probability(spoof_probability, "CNN")
+
+        return build_prediction_response(
+            filename=original_name,
+            model_name="CNN",
+            spoof_probability=spoof_probability,
+            threshold=CNN_PREDICTION_THRESHOLD,
         )
 
     finally:

@@ -1,0 +1,101 @@
+{
+  "evaluation_status": "recreated_evaluation",
+  "dataset": "ASVspoof2019 LA dev",
+  "total_recordings": 200,
+  "bonafide_count": 100,
+  "spoof_count": 100,
+  "seed": 42,
+  "samples_per_class": 100,
+  "device": "cpu",
+  "label_mapping": {
+    "0": "bonafide",
+    "1": "spoof"
+  },
+  "roc_auc": 0.9069,
+  "threshold_metrics": [
+    {
+      "threshold": 0.3,
+      "accuracy": 0.83,
+      "balanced_accuracy": 0.8300000000000001,
+      "spoof_precision": 0.9125,
+      "spoof_recall": 0.73,
+      "spoof_f1": 0.8111111111111111,
+      "confusion_matrix": [
+        [
+          93,
+          7
+        ],
+        [
+          27,
+          73
+        ]
+      ]
+    },
+    {
+      "threshold": 0.5,
+      "accuracy": 0.745,
+      "balanced_accuracy": 0.745,
+      "spoof_precision": 0.9622641509433962,
+      "spoof_recall": 0.51,
+      "spoof_f1": 0.6666666666666666,
+      "confusion_matrix": [
+        [
+          98,
+          2
+        ],
+        [
+          49,
+          51
+        ]
+      ]
+    },
+    {
+      "threshold": 0.7,
+      "accuracy": 0.715,
+      "balanced_accuracy": 0.715,
+      "spoof_precision": 1.0,
+      "spoof_recall": 0.43,
+      "spoof_f1": 0.6013986013986014,
+      "confusion_matrix": [
+        [
+          100,
+          0
+        ],
+        [
+          57,
+          43
+        ]
+      ]
+    }
+  ],
+  "classification_report_at_0.50": {
+    "bonafide": {
+      "precision": 0.6666666666666666,
+      "recall": 0.98,
+      "f1-score": 0.7935222672064778,
+      "support": 100.0
+    },
+    "spoof": {
+      "precision": 0.9622641509433962,
+      "recall": 0.51,
+      "f1-score": 0.6666666666666666,
+      "support": 100.0
+    },
+    "accuracy": 0.745,
+    "macro avg": {
+      "precision": 0.8144654088050314,
+      "recall": 0.745,
+      "f1-score": 0.7300944669365722,
+      "support": 200.0
+    },
+    "weighted avg": {
+      "precision": 0.8144654088050314,
+      "recall": 0.745,
+      "f1-score": 0.7300944669365722,
+      "support": 200.0
+    }
+  },
+  "manifest_file": "C:\\Users\\DELL\\Documents\\AcousticSpace-Deepfake-Detection-via-Room-Impulse-Response-RIR-\\audio_ml\\evaluation\\ast_200_manifest.csv",
+  "predictions_file": "C:\\Users\\DELL\\Documents\\AcousticSpace-Deepfake-Detection-via-Room-Impulse-Response-RIR-\\audio_ml\\evaluation\\ast_200_predictions.csv",
+  "note": "Recreated deterministic balanced subset from the official development protocol. Not verified as the exact original run behind the earlier report and not an independent held-out test set."
+}

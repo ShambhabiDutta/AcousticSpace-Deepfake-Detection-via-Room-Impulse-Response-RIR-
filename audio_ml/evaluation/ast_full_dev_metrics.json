@@ -1,0 +1,64 @@
+﻿{
+    "model":  "Pretrained AST",
+    "evaluation_status":  "Full development-set evaluation; not fine-tuned",
+    "dataset":  "ASVspoof2019 LA dev",
+    "total_recordings":  24844,
+    "bonafide_count":  2548,
+    "spoof_count":  22296,
+    "device":  "cpu",
+    "roc_auc":  0.9069,
+    "threshold_metrics":  [
+                              {
+                                  "threshold":  0.3,
+                                  "accuracy":  0.7539,
+                                  "balanced_accuracy":  0.8217,
+                                  "spoof_precision":  0.9858,
+                                  "spoof_recall":  0.7364,
+                                  "confusion_matrix":  [
+                                                           [
+                                                               2311,
+                                                               237
+                                                           ],
+                                                           [
+                                                               5878,
+                                                               16418
+                                                           ]
+                                                       ]
+                              },
+                              {
+                                  "threshold":  0.5,
+                                  "accuracy":  0.6249,
+                                  "balanced_accuracy":  0.7780,
+                                  "spoof_precision":  0.9943,
+                                  "spoof_recall":  0.5854,
+                                  "confusion_matrix":  [
+                                                           [
+                                                               2473,
+                                                               75
+                                                           ],
+                                                           [
+                                                               9243,
+                                                               13053
+                                                           ]
+                                                       ]
+                              },
+                              {
+                                  "threshold":  0.7,
+                                  "accuracy":  0.4998,
+                                  "balanced_accuracy":  0.7185,
+                                  "spoof_precision":  0.9984,
+                                  "confusion_matrix":  [
+                                                           [
+                                                               2532,
+                                                               16
+                                                           ],
+                                                           [
+                                                               12411,
+                                                               9885
+                                                           ]
+                                                       ],
+                                  "spoof_recall":  0.4434
+                              }
+                          ],
+    "note":  "This evaluates the existing pretrained AST model on the full development set. It is not a fine-tuned AST result or an independent test-set result."
+}

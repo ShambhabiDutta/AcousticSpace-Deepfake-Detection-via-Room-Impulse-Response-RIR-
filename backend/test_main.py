@@ -172,5 +172,5 @@ def test_successful_prediction(monkeypatch):
     assert result["filename"] == "sample.wav"
     assert result["prediction"] == "spoof"
     assert result["spoof_probability"] == 0.8
-    assert result["threshold"] == 0.70
+    assert result["analysis"]["threshold"] == 0.70
     assert result["status"] == "success"

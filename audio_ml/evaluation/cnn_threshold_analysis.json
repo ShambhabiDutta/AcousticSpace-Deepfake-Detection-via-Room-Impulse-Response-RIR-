@@ -1,0 +1,99 @@
+{
+    "model": "CNN",
+    "validation_samples": 5076,
+    "random_seed": 42,
+    "validation_split": "stratified 80/20",
+    "class_mapping": {
+        "real": 0,
+        "spoof": 1
+    },
+    "checkpoint_validation_balanced_accuracy": 0.7986153610771114,
+    "roc_auc": 0.9243170304637562,
+    "threshold_results": [
+        {
+            "threshold": 0.3,
+            "accuracy": 0.8955870764381403,
+            "balanced_accuracy": 0.6952544879640963,
+            "spoof_precision": 0.9376629018245004,
+            "spoof_recall": 0.9467105263157894,
+            "spoof_f1": 0.9421649934526408,
+            "confusion_matrix": {
+                "true_negative": 229,
+                "false_positive": 287,
+                "false_negative": 243,
+                "true_positive": 4317
+            }
+        },
+        {
+            "threshold": 0.4,
+            "accuracy": 0.892434988179669,
+            "balanced_accuracy": 0.7493574051407589,
+            "spoof_precision": 0.9502018842530283,
+            "spoof_recall": 0.9289473684210526,
+            "spoof_f1": 0.9394544244843646,
+            "confusion_matrix": {
+                "true_negative": 294,
+                "false_positive": 222,
+                "false_negative": 324,
+                "true_positive": 4236
+            }
+        },
+        {
+            "threshold": 0.5,
+            "accuracy": 0.8882978723404256,
+            "balanced_accuracy": 0.7986153610771114,
+            "spoof_precision": 0.9624739402362752,
+            "spoof_recall": 0.9111842105263158,
+            "spoof_f1": 0.9361270699560662,
+            "confusion_matrix": {
+                "true_negative": 354,
+                "false_positive": 162,
+                "false_negative": 405,
+                "true_positive": 4155
+            }
+        },
+        {
+            "threshold": 0.6,
+            "accuracy": 0.876280535855004,
+            "balanced_accuracy": 0.8323158914728682,
+            "spoof_precision": 0.9723690533397406,
+            "spoof_recall": 0.8875,
+            "spoof_f1": 0.9279981655583581,
+            "confusion_matrix": {
+                "true_negative": 401,
+                "false_positive": 115,
+                "false_negative": 513,
+                "true_positive": 4047
+            }
+        },
+        {
+            "threshold": 0.7,
+            "accuracy": 0.8546099290780141,
+            "balanced_accuracy": 0.8743931048551612,
+            "spoof_precision": 0.9867549668874173,
+            "spoof_recall": 0.849561403508772,
+            "spoof_f1": 0.9130332312043365,
+            "confusion_matrix": {
+                "true_negative": 464,
+                "false_positive": 52,
+                "false_negative": 686,
+                "true_positive": 3874
+            }
+        }
+    ],
+    "best_threshold_among_tested_values": {
+        "threshold": 0.7,
+        "accuracy": 0.8546099290780141,
+        "balanced_accuracy": 0.8743931048551612,
+        "spoof_precision": 0.9867549668874173,
+        "spoof_recall": 0.849561403508772,
+        "spoof_f1": 0.9130332312043365,
+        "confusion_matrix": {
+            "true_negative": 464,
+            "false_positive": 52,
+            "false_negative": 686,
+            "true_positive": 3874
+        }
+    },
+    "note": "Threshold selection is based on the validation set. Independent test data is needed for an unbiased final performance estimate."
+}
