@@ -181,7 +181,7 @@ function App() {
 
   // Handle file selection and validation.
   const handleFile = (file?: File) => {
-    if (!file) return;
+    if (!file || isUploading) return;
 
     const validationError = validateFile(file);
 
@@ -228,6 +228,7 @@ function App() {
 
   // Clear the currently selected audio.
   const clearAudio = () => {
+    if (isUploading) return;
     waveSurferRef.current?.stop();
 
     setAudioFile(null);
