@@ -139,6 +139,7 @@ def build_prediction_response(
         "filename": filename,
         "model": model_name,
         "prediction": prediction,
+        "predicted_class": prediction,
         "class_probabilities": {
             "real": round(real_probability, 4),
             "spoof": round(spoof_probability, 4),
@@ -152,6 +153,7 @@ def build_prediction_response(
                 "otherwise real"
             ),
         },
+        "analysis_status": "success",
         "status": "success",
     }
 
@@ -196,7 +198,7 @@ async def predict_audio(file: UploadFile = File(...)):
     try:
         original_name, extension, content = await read_audio_upload(file)
 
-        # Save temporarily for audio preprocessing.
+        # Save the uploaded audio temporarily for preprocessing.
         with tempfile.NamedTemporaryFile(
             suffix=extension,
             delete=False,
