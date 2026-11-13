@@ -13,9 +13,8 @@ The project includes:
 - A FastAPI backend for audio upload and prediction.
 - Model evaluation and automated testing.
 - Docker-based backend containerization.
-- GitHub Actions continuous integration.
 
-The current implementation provides separate prediction endpoints for the baseline, CNN, and AST models.
+The backend provides separate prediction endpoints for the baseline, CNN, and AST models.
 
 ## 2. Technology Stack
 
@@ -29,7 +28,6 @@ The current implementation provides separate prediction endpoints for the baseli
 | Model storage | Joblib, PyTorch checkpoints, Safetensors |
 | Testing | Pytest, HTTPX |
 | Containerization | Docker |
-| CI | GitHub Actions |
 | Version control | Git, GitHub |
 
 ## 3. Project Structure
@@ -45,11 +43,14 @@ AcousticSpace/
 │   ├── models/
 │   │   ├── baseline_logreg.joblib
 │   │   ├── cnn_baseline.pt
+│   │   ├── model_manifest.json
 │   │   └── ast_binary/
 │   │       ├── config.json
 │   │       └── model.safetensors
 │   └── evaluation/
-│       └── evaluation reports
+│       ├── ast_binary_full_dev_checkpoint.csv
+│       ├── ast_binary_full_dev_metrics.json
+│       └── ast_binary_full_dev_predictions.csv
 │
 ├── backend/
 │   ├── main.py
@@ -60,6 +61,7 @@ AcousticSpace/
 │       ├── train_ast.py
 │       ├── train_cnn.py
 │       ├── evaluate_ast_full_dev.py
+│       ├── evaluate_ast_binary_full_dev.py
 │       ├── evaluate_cnn_dev.py
 │       └── evaluate_cnn_validation.py
 │
@@ -68,11 +70,9 @@ AcousticSpace/
 │
 ├── data/
 ├── docs/
+│   ├── API_GUIDE.md
 │   └── MODEL_EVALUATION.md
 ├── uploads/
-├── .github/
-│   └── workflows/
-│       └── backend-ci.yml
 ├── .dockerignore
 ├── .gitattributes
 ├── .gitignore
@@ -80,7 +80,7 @@ AcousticSpace/
 └── README.md
 ```
 
-*Note: This tree shows the principal project files. Additional experimental, test, and evaluation files may be present. Large datasets, virtual environments, temporary uploads, and generated experimental artifacts should not be committed unnecessarily.*
+*Note: This tree shows the principal project files. Additional experimental, test, and evaluation files may be present. Large datasets, virtual environments, temporary uploads, and unnecessary generated artifacts should not be committed.*
 
 ## 4. Environment Setup
 
@@ -89,7 +89,7 @@ AcousticSpace/
 - Python 3.12 or a compatible Python environment.
 - pip.
 - Git.
-- Docker Desktop (for containerized deployment).
+- Docker Desktop for containerized deployment.
 - A compatible virtual environment.
 
 ### Create and activate a virtual environment
@@ -105,7 +105,7 @@ python -m venv venv
 pip install -r backend/requirements.txt
 ```
 
-The CNN and AST workflows also require their respective machine-learning and audio-processing dependencies.
+The backend requirements include the CPU-based PyTorch dependency and the audio-processing and inference libraries used by the project.
 
 ## 5. Audio Processing Pipeline
 
@@ -141,7 +141,7 @@ From the project root:
 python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-If the local import configuration requires running from the backend directory:
+If running the application from the backend directory:
 
 ```powershell
 cd backend
@@ -221,7 +221,7 @@ The CNN model uses log-mel spectrogram features to classify audio into two categ
 
 | Class | Label |
 |---|---:|
-| Real | 0 |
+| Real / Bonafide | 0 |
 | Spoof | 1 |
 
 Saved checkpoint:
@@ -230,22 +230,13 @@ Saved checkpoint:
 audio_ml/models/cnn_baseline.pt
 ```
 
-The checkpoint stores:
-
-- Model state dictionary.
-- Number of output classes.
-- Input shape.
-- Class mapping.
-- Training seed and configuration.
-- Validation balanced accuracy.
-
 The CNN inference module is:
 
 ```text
 backend/cnn_inference.py
 ```
 
-It loads the saved checkpoint, validates its metadata, preprocesses audio, performs inference, and returns the spoof probability.
+It loads the saved checkpoint, preprocesses audio, performs inference, and returns the spoof probability.
 
 ### 7.3 Audio Spectrogram Transformer (AST)
 
@@ -278,7 +269,7 @@ backend/training/train_ast.py
 
 The script supports selecting genuine samples and spoof samples from attack categories A01–A06. Its separate experiment output directory is intended to protect the existing AST checkpoint.
 
-**Status:** AST inference and evaluation have been performed. The separate attack-aware fine-tuning script has been prepared, but a completed fine-tuned experiment should not be claimed until it has actually been run and evaluated.
+**Status:** AST inference and evaluation have been performed. The separate attack-aware fine-tuning script has been prepared, but a completed fine-tuned experiment should not be claimed until it has been run and evaluated.
 
 ## 8. CNN Training and Evaluation
 
@@ -286,12 +277,6 @@ The script supports selecting genuine samples and spoof samples from attack cate
 
 ```powershell
 python -m backend.training.train_cnn
-```
-
-The saved model is:
-
-```text
-audio_ml/models/cnn_baseline.pt
 ```
 
 ### Evaluate on the validation set
@@ -306,13 +291,15 @@ python -m backend.training.evaluate_cnn_validation
 python -m backend.training.evaluate_cnn_dev
 ```
 
-### CNN Evaluation Results
+### CNN Development Evaluation Results
 
-| Metric | CNN Validation | CNN Development |
-|---|---:|---:|
-| ROC-AUC | 0.9243 | 0.9434 |
-| Best tested balanced accuracy | 87.44% | 91.19% |
-| Threshold associated with best tested balanced accuracy | 0.70 | 0.70 |
+The full development-set evaluation covered 24,844 recordings.
+
+| Metric | CNN |
+|---|---:|
+| ROC-AUC | 0.9434 |
+| Balanced accuracy at threshold 0.60 | 88.45% |
+| Balanced accuracy at threshold 0.70 | 91.19% |
 
 ### CNN Development Threshold Comparison
 
@@ -326,25 +313,29 @@ python -m backend.training.evaluate_cnn_dev
 
 A higher threshold improves genuine-audio recall in these results, while a lower threshold catches more spoof recordings.
 
-The API's CNN threshold remains provisionally configured at 0.50. The threshold comparison above is evaluation evidence, not a finalized production calibration.
+The CNN API threshold is configured at **0.60**, representing a compromise between real and spoof recall in the evaluated development data.
 
 ## 9. AST Evaluation
 
 The AST model was evaluated on the ASVspoof 2019 LA development data.
 
-Recorded full development-set results:
+The full development set contained 24,844 recordings:
+
+- 2,548 bonafide recordings.
+- 22,296 spoof recordings.
+
+### AST Full Development Evaluation Results
 
 | Metric | AST |
 |---|---:|
 | ROC-AUC | 0.9069 |
-| Balanced accuracy at threshold 0.30 | 82.17% |
-| Spoof recall at threshold 0.30 | 73.64% |
-| Balanced accuracy at threshold 0.50 | 77.80% |
-| Spoof recall at threshold 0.50 | 58.54% |
+| Balanced accuracy at threshold 0.20 | 82.77% |
+| Spoof recall at threshold 0.20 | 82.50% |
+| Spoof precision at threshold 0.20 | 97.71% |
 
-These results show that the decision threshold changes the balance between detecting spoof recordings and correctly recognizing genuine recordings.
+The AST API threshold is configured at **0.20**.
 
-Detailed evaluation reports are available in:
+Detailed evaluation outputs are stored in:
 
 ```text
 audio_ml/evaluation/
@@ -358,9 +349,9 @@ docs/MODEL_EVALUATION.md
 
 ## 10. Model Selection and Limitations
 
-The CNN achieved a higher recorded development ROC-AUC and balanced accuracy than the AST result listed above.
+The CNN achieved a higher recorded development ROC-AUC than the AST result listed above.
 
-The CNN is therefore the current deployment candidate for the next development stage. The AST pipeline remains available for comparison and further experiments.
+The CNN is the current deployment candidate for the next development stage. The AST pipeline remains available for comparison and further experiments.
 
 Important limitations:
 
@@ -381,23 +372,25 @@ Run the full test suite from the project root:
 python -m pytest -v
 ```
 
-The latest verified targeted API/backend test command was:
+**Latest full test-suite result:**
+
+```text
+38 passed
+```
+
+Dependency consistency was also checked:
 
 ```powershell
-python -m pytest tests/test_prediction_api.py backend/test_main.py -q
+python -m pip check
 ```
 
 Result:
 
 ```text
-18 passed
+No broken requirements found.
 ```
 
-The CNN API tests cover:
-
-- Successful prediction responses.
-- Invalid audio handling.
-- Model inference failure handling.
+The prediction API tests cover successful responses, invalid audio handling, and model inference failure handling.
 
 A synthetic audio smoke test was also performed to verify audio decoding, feature extraction, CNN inference, and the prediction API response. This smoke test verifies the inference pipeline, not real-world deepfake accuracy.
 
@@ -475,7 +468,7 @@ docker stop acousticspace-week4
 docker rm acousticspace-week4
 ```
 
-### Local Docker verification
+### Local Docker Verification
 
 The following checks were completed locally:
 
@@ -487,44 +480,9 @@ The following checks were completed locally:
 - Invalid audio format was rejected with HTTP 400.
 - Model inference ran inside the container.
 
-The measured average CNN HTTP response time across five local requests was approximately 186 ms. This includes the HTTP request and response process, not just model execution time. The first request was slower than subsequent requests.
-
 These results represent local development verification, not a production deployment or cloud-hosted performance benchmark.
 
-## 13. Continuous Integration — GitHub Actions
-
-A GitHub Actions workflow has been added at:
-
-```text
-.github/workflows/backend-ci.yml
-```
-
-The workflow is configured to run on pushes and pull requests.
-
-Its steps include:
-
-1. Checking out the repository.
-2. Setting up Python 3.12.
-3. Installing FFmpeg and `libsndfile1`.
-4. Installing CPU-based PyTorch.
-5. Installing backend dependencies.
-6. Running the backend prediction API tests.
-
-### CI verification status
-
-The workflow file has been created and staged locally. Its execution on GitHub must be verified after the changes are pushed to the repository.
-
-To verify the workflow:
-
-1. Push the approved changes to the GitHub branch.
-2. Open the repository on GitHub.
-3. Select the **Actions** tab.
-4. Open the **AcousticSpace Backend CI** workflow.
-5. Confirm that the latest run completes successfully.
-
-A successful local test run does not automatically mean the remote GitHub Actions workflow has passed.
-
-## 14. Development Status Through Week 4
+## 13. Development Status Through Week 4
 
 ### Week 3 — Advanced AI, Model Inference and Evaluation
 
@@ -537,10 +495,10 @@ A successful local test run does not automatically mean the remote GitHub Action
 - Threshold comparison.
 - Updated model evaluation documentation.
 - Automated CNN API tests.
-- Week 3 changes committed and pushed to the `KarolineUrmitha` GitHub branch.
 
 ### Week 4 — Backend, ML Deployment and API
 
+- Updated backend dependencies and model manifest.
 - Finalized the current CNN deployment candidate while retaining AST for comparison.
 - Organized model weights, configuration, and inference dependencies.
 - Added the root-level Dockerfile.
@@ -549,20 +507,9 @@ A successful local test run does not automatically mean the remote GitHub Action
 - Verified container health.
 - Tested CNN and AST prediction endpoints inside Docker.
 - Verified invalid audio handling.
-- Measured local CNN API response time.
-- Added the GitHub Actions backend CI workflow.
-- Verified 18 targeted backend/API tests locally.
-- Remote GitHub Actions execution remains pending verification.
+- Added evaluation metrics, predictions, and checkpoint records.
+- Updated API documentation and prediction tests.
+- Completed the full test suite with 38 passing tests.
+- Committed and pushed the Week 4 changes to the  GitHub branch.
 
-## 15. Future Work
 
-- Run and evaluate the separate attack-aware AST fine-tuning experiment.
-- Perform additional model calibration on suitable validation data.
-- Evaluate the selected model on an independent test set.
-- Improve inference latency and resource usage.
-- Investigate robust RIR-based feature integration.
-- Strengthen generalization across recording environments and spoofing methods.
-- Add verified timestamp-level suspicious-segment localization if supported by future model development.
-- Verify the GitHub Actions workflow on the remote repository.
-- Explore cloud deployment and production monitoring.
-- Document further deployment and evaluation evidence.
