@@ -1,0 +1,81 @@
+
+{
+  "project": "AcousticSpace",
+  "manifest_version": "1.0",
+  "deployment_device": "cpu",
+  "models": {
+    "AST": {
+      "architecture": "ASTForAudioClassification",
+      "checkpoint": "audio_ml/models/ast_binary/model.safetensors",
+      "configuration": "audio_ml/models/ast_binary/config.json",
+      "feature_extractor": "audio_ml/models/ast_binary/preprocessor_config.json",
+      "checkpoint_provenance": "Not verified. backend/training/train_ast.py currently specifies ast_attack_aware_experiment as its output directory, not ast_binary.",
+      "sample_rate": 16000,
+      "channels": 1,
+      "num_mel_bins": 128,
+      "max_length": 1024,
+      "normalization": {
+        "enabled": true,
+        "mean": -4.2677393,
+        "std": 4.5689974
+      },
+      "class_mapping": {
+        "bonafide": 0,
+        "spoof": 1
+      },
+      "prediction_threshold": 0.2
+    },
+    "CNN": {
+      "architecture": "BaselineCNN",
+      "checkpoint": "audio_ml/models/cnn_baseline.pt",
+      "source_module": "backend/models/cnn_model.py",
+      "sample_rate": 16000,
+      "channels": 1,
+      "input_shape": [
+        1,
+        64,
+        400
+      ],
+      "spectrogram": {
+        "type": "log_mel",
+        "n_fft": 1024,
+        "hop_length": 256,
+        "n_mels": 64,
+        "power": 2.0,
+        "reference": "maximum",
+        "max_frames": 400,
+        "padding_value": -80.0
+      },
+      "normalization": {
+        "formula": "clip((spectrogram + 80.0) / 80.0, 0.0, 1.0)"
+      },
+      "class_mapping": {
+        "real": 0,
+        "spoof": 1
+      },
+      "prediction_threshold": 0.6,
+      "training_metadata": {
+        "seed": 42,
+        "epochs": 3,
+        "batch_size": 8,
+        "validation_balanced_accuracy": 0.7986153610771114
+      }
+    }
+  },
+  "runtime_dependencies": {
+    "fastapi": "0.143.1",
+    "uvicorn": "0.54.0",
+    "python-multipart": "0.0.32",
+    "numpy": "2.5.4",
+    "librosa": "1.0.0",
+    "transformers": "5.21.0",
+    "torch": "2.14.1+cpu",
+    "safetensors": "0.8.0",
+    "joblib": "1.6.0",
+    "scikit-learn": "1.9.1"
+  },
+  "test_dependencies": {
+    "pytest": "9.1.1",
+    "httpx": "0.28.1"
+  }
+}
