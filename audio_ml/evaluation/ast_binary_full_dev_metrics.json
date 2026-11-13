@@ -1,0 +1,95 @@
+{
+    "model": "AST binary deployed checkpoint",
+    "checkpoint_directory": "C:\\Users\\DELL\\Documents\\AcousticSpace-Deepfake-Detection-via-Room-Impulse-Response-RIR-\\audio_ml\\models\\ast_binary",
+    "evaluation_status": "Full development-set evaluation; no model training performed during evaluation.",
+    "dataset": "ASVspoof2019 LA development set",
+    "total_recordings": 24844,
+    "bonafide_count": 2548,
+    "spoof_count": 22296,
+    "device": "cpu",
+    "roc_auc": 0.9068563346925257,
+    "threshold_metrics": [
+        {
+            "threshold": 0.3,
+            "accuracy": 0.7538641120592497,
+            "balanced_accuracy": 0.821675569292054,
+            "spoof_precision": 0.9857700390273191,
+            "spoof_recall": 0.7363652673125224,
+            "spoof_f1": 0.8430078816975174,
+            "confusion_matrix": [
+                [
+                    2311,
+                    237
+                ],
+                [
+                    5878,
+                    16418
+                ]
+            ]
+        },
+        {
+            "threshold": 0.5,
+            "accuracy": 0.6249396232490743,
+            "balanced_accuracy": 0.778003241952573,
+            "spoof_precision": 0.9942870201096892,
+            "spoof_recall": 0.5854413347685683,
+            "spoof_f1": 0.7369579945799458,
+            "confusion_matrix": [
+                [
+                    2473,
+                    75
+                ],
+                [
+                    9243,
+                    13053
+                ]
+            ]
+        },
+        {
+            "threshold": 0.7,
+            "accuracy": 0.4997987441635807,
+            "balanced_accuracy": 0.7185368164819956,
+            "spoof_precision": 0.9983840016159984,
+            "spoof_recall": 0.4433530678148547,
+            "spoof_f1": 0.6140323632636581,
+            "confusion_matrix": [
+                [
+                    2532,
+                    16
+                ],
+                [
+                    12411,
+                    9885
+                ]
+            ]
+        }
+    ],
+    "classification_report_threshold_0_50": {
+        "bonafide": {
+            "precision": 0.2110788665073404,
+            "recall": 0.9705651491365777,
+            "f1-score": 0.3467470555243971,
+            "support": 2548.0
+        },
+        "spoof": {
+            "precision": 0.9942870201096892,
+            "recall": 0.5854413347685683,
+            "f1-score": 0.7369579945799458,
+            "support": 22296.0
+        },
+        "accuracy": 0.6249396232490743,
+        "macro avg": {
+            "precision": 0.6026829433085148,
+            "recall": 0.778003241952573,
+            "f1-score": 0.5418525250521715,
+            "support": 24844.0
+        },
+        "weighted avg": {
+            "precision": 0.9139612120522593,
+            "recall": 0.6249396232490741,
+            "f1-score": 0.6969379707225339,
+            "support": 24844.0
+        }
+    },
+    "note": "This evaluates the deployed ast_binary checkpoint on the development set. It is not an independent final test-set result."
+}

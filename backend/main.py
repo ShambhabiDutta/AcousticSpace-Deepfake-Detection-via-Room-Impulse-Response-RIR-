@@ -54,10 +54,10 @@ MODEL_PATH = PROJECT_ROOT / "audio_ml" / "models" / "baseline_logreg.joblib"
 PREDICTION_THRESHOLD = 0.70
 
 # Existing AST threshold.
-AST_PREDICTION_THRESHOLD = 0.50
+AST_PREDICTION_THRESHOLD = 0.20
 
 # CNN threshold is provisional and must be validated.
-CNN_PREDICTION_THRESHOLD = 0.50
+CNN_PREDICTION_THRESHOLD = 0.60
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
 MAX_FILE_SIZE = 20 * 1024 * 1024  # 20 MB

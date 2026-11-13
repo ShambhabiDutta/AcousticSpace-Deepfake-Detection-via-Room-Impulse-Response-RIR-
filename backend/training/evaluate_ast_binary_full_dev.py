@@ -293,7 +293,7 @@ def evaluate_threshold(actual, probabilities, threshold):
 def print_final_metrics(records, probabilities):
 
     actual = np.asarray(
-        [label for _, label in records],
+        [record[1] for record in records],
         dtype=np.int64,
     )
 
@@ -467,7 +467,8 @@ def save_predictions(records, actual, probabilities):
 
         writer.writeheader()
 
-        for index, (audio_id, _) in enumerate(records):
+        for index, record in enumerate(records):
+            audio_id = record[0]
 
             writer.writerow({
                 "audio_id": audio_id,

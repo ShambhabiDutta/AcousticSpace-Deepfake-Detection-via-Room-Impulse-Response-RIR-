@@ -146,6 +146,27 @@ def test_invalid_audio_returns_bad_request(client, monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid audio file."
+def test_ast_model_failure_returns_server_error(client, monkeypatch):
+    def raise_model_error(path):
+        raise RuntimeError("AST checkpoint unavailable.")
+
+    monkeypatch.setattr(
+        api,
+        "predict_ast_file",
+        raise_model_error,
+    )
+
+    response = client.post(
+        "/predict/ast",
+        files={
+            "file": ("sample.wav", b"fake audio data", "audio/wav")
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == (
+        "AST prediction failed while processing the audio."
+    )
 def test_cnn_prediction(client, monkeypatch):
     # Mock CNN inference so the test does not need to process real audio.
     monkeypatch.setattr(

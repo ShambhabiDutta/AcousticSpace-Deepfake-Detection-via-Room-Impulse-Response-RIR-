@@ -36,6 +36,8 @@ from train_ast import (
 
 ROOT = Path(__file__).resolve().parents[2]
 
+OUTPUT_DIR = ROOT / "audio_ml" / "models" / "ast_binary"
+
 PROTOCOL_PATH = (
     DATA_ROOT
     / "ASVspoof2019_LA_cm_protocols"
