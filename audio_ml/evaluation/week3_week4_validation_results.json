@@ -1,0 +1,215 @@
+{
+  "hardware": {
+    "cpu": "AMD Ryzen 7 5700U",
+    "cpu_threads": 16,
+    "device": "cpu"
+  },
+  "preprocessing_parity": {
+    "sample_rate": 16000,
+    "audio_samples": 48000,
+    "cnn_input_shape": [
+      1,
+      64,
+      400
+    ],
+    "cnn_padding_db": -80.0,
+    "cnn_norm_min": 0.0,
+    "cnn_norm_max": 1.0,
+    "cnn_parity_verified": true,
+    "ast_expected_config": {
+      "sample_rate": 16000,
+      "num_mel_bins": 128,
+      "max_length": 1024,
+      "mean": -4.2677393,
+      "std": 4.5689974
+    }
+  },
+  "acoustic_condition_validation": {
+    "clean": {
+      "sample_count": 20,
+      "mean_blind_t60_sec": 2.9457,
+      "mean_tail_energy_ratio": 0.2644,
+      "mean_syllable_rate_hz": 3.5501,
+      "mean_isi_cv": 0.5352
+    },
+    "reverb": {
+      "sample_count": 20,
+      "mean_blind_t60_sec": 3.3212,
+      "mean_tail_energy_ratio": 0.2262,
+      "mean_syllable_rate_hz": 3.0667,
+      "mean_isi_cv": 0.5592
+    },
+    "noisy_snr10": {
+      "sample_count": 20,
+      "mean_blind_t60_sec": 3.6634,
+      "mean_tail_energy_ratio": 0.224,
+      "mean_syllable_rate_hz": 2.8666,
+      "mean_isi_cv": 0.5238
+    },
+    "noisy_snr5": {
+      "sample_count": 20,
+      "mean_blind_t60_sec": 3.7395,
+      "mean_tail_energy_ratio": 0.2198,
+      "mean_syllable_rate_hz": 2.7666,
+      "mean_isi_cv": 0.5389
+    },
+    "noisy_snr0": {
+      "sample_count": 20,
+      "mean_blind_t60_sec": 3.8486,
+      "mean_tail_energy_ratio": 0.2135,
+      "mean_syllable_rate_hz": 3.0999,
+      "mean_isi_cv": 0.4938
+    }
+  },
+  "unified_held_out_comparison": {
+    "evaluation_samples": 40,
+    "real_samples": 20,
+    "spoof_samples": 20,
+    "LogisticRegression_Baseline": {
+      "threshold": 0.5,
+      "accuracy": 0.175,
+      "balanced_accuracy": 0.175,
+      "precision": 0.24,
+      "recall": 0.3,
+      "f1_score": 0.2667,
+      "roc_auc": 0.155,
+      "confusion_matrix": [
+        [
+          1,
+          19
+        ],
+        [
+          14,
+          6
+        ]
+      ]
+    },
+    "CNN_Baseline": {
+      "threshold": 0.6,
+      "accuracy": 0.5,
+      "balanced_accuracy": 0.5,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1_score": 0.6667,
+      "roc_auc": 0.0,
+      "confusion_matrix": [
+        [
+          0,
+          20
+        ],
+        [
+          0,
+          20
+        ]
+      ]
+    },
+    "AST_Transformer": {
+      "threshold": 0.2,
+      "accuracy": 0.5,
+      "balanced_accuracy": 0.5,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1_score": 0.6667,
+      "roc_auc": 0.0,
+      "confusion_matrix": [
+        [
+          0,
+          20
+        ],
+        [
+          0,
+          20
+        ]
+      ]
+    }
+  },
+  "latency_profile_ms": {
+    "audio_load_16k": {
+      "mean_ms": 0.33,
+      "min_ms": 0.32,
+      "max_ms": 0.34
+    },
+    "cnn_log_mel_400": {
+      "mean_ms": 4.46,
+      "min_ms": 3.91,
+      "max_ms": 5.26
+    },
+    "rir_decay_and_proxies": {
+      "mean_ms": 11.63,
+      "min_ms": 11.53,
+      "max_ms": 11.76
+    },
+    "breathing_syllable_cadence": {
+      "mean_ms": 13.55,
+      "min_ms": 12.44,
+      "max_ms": 13.93
+    },
+    "cnn_cpu_inference": {
+      "mean_ms": 14.18,
+      "min_ms": 11.82,
+      "max_ms": 22.9
+    },
+    "ast_cpu_inference": {
+      "mean_ms": 1132.19,
+      "min_ms": 1121.94,
+      "max_ms": 1141.92
+    }
+  },
+  "duration_robustness": [
+    {
+      "duration_sec": 0.5,
+      "cnn_spoof_prob": 0.8645,
+      "ast_spoof_prob": 0.9267,
+      "combined_latency_ms": 1080.13,
+      "status": "PASS"
+    },
+    {
+      "duration_sec": 1.0,
+      "cnn_spoof_prob": 0.8695,
+      "ast_spoof_prob": 0.9432,
+      "combined_latency_ms": 1186.27,
+      "status": "PASS"
+    },
+    {
+      "duration_sec": 4.0,
+      "cnn_spoof_prob": 0.945,
+      "ast_spoof_prob": 0.963,
+      "combined_latency_ms": 1174.57,
+      "status": "PASS"
+    },
+    {
+      "duration_sec": 10.0,
+      "cnn_spoof_prob": 0.9764,
+      "ast_spoof_prob": 0.9576,
+      "combined_latency_ms": 1250.4,
+      "status": "PASS"
+    },
+    {
+      "duration_sec": 15.0,
+      "cnn_spoof_prob": 0.9764,
+      "ast_spoof_prob": 0.9554,
+      "combined_latency_ms": 1315.55,
+      "status": "PASS"
+    }
+  ],
+  "format_robustness": [
+    {
+      "format": ".wav",
+      "cnn_spoof_prob": 0.9315,
+      "ast_spoof_prob": 0.9533,
+      "status": "PASS"
+    },
+    {
+      "format": ".flac",
+      "cnn_spoof_prob": 0.9315,
+      "ast_spoof_prob": 0.9533,
+      "status": "PASS"
+    },
+    {
+      "format": ".ogg",
+      "cnn_spoof_prob": 0.9232,
+      "ast_spoof_prob": 0.9431,
+      "status": "PASS"
+    }
+  ]
+}
